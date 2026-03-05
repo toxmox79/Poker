@@ -1,0 +1,16 @@
+{
+  "name": "Poker Game Night",
+  "short_name": "Poker",
+  "start_url": "./",
+  "display": "fullscreen",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d4a017",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "assets/icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

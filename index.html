@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Poker Game Night</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <!-- QR Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- PeerJS for WebRTC Signaling -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Landscape Overlay for Portrait Mode -->
+        <div id="rotate-overlay">
+            <div class="rotate-content">
+                <div class="rotate-icon">📱→📺</div>
+                <p>Bitte drehe dein Gerät ins <strong>Querformat</strong></p>
+            </div>
+        </div>
+
+        <!-- Home Screen -->
+        <div id="screen-home" class="screen active">
+            <div class="home-bg-overlay"></div>
+            <h1 class="logo">♠ Poker Game Night ♥</h1>
+            <div id="network-info" class="badge"></div>
+            <div class="menu-buttons">
+                <button id="btn-solo" class="btn success">▶ Solo Spielen</button>
+                <button id="btn-host" class="btn primary">⚡ Host (Multiplayer)</button>
+                <button id="btn-join" class="btn secondary">📷 Join Game</button>
+            </div>
+            <p class="hint">Für Hisense TV optimiert · Vollbild beim Start</p>
+        </div>
+
+        <!-- Host Screen -->
+        <div id="screen-host" class="screen">
+            <div class="host-layout">
+                <!-- Left: QR + URL -->
+                <div class="host-left">
+                    <h2>Lobby: <span id="lobby-id">...</span></h2>
+                    <div id="qrcode"></div>
+                    <p class="qr-hint">Scan zum Beitreten oder:<br><strong id="host-url">...</strong></p>
+                </div>
+                <!-- Right: Players + Bot Config -->
+                <div class="host-right">
+                    <div class="players-container">
+                        <h3>Spieler (<span id="player-count">0</span>)</h3>
+                        <ul id="players-list">Warte auf Spieler...</ul>
+                    </div>
+                    <!-- Bot selector in host screen -->
+                    <div class="bot-config host-bot-config">
+                        <label>🤖 Computer-Gegner:</label>
+                        <div class="bot-steps">
+                            <button class="host-bot-adj btn secondary" data-delta="-1">−</button>
+                            <span id="host-bot-count-display">0</span>
+                            <button class="host-bot-adj btn secondary" data-delta="1">+</button>
+                        </div>
+                        <input type="hidden" id="host-bot-count" value="0">
+                    </div>
+                    <div class="menu-buttons">
+                        <button id="btn-start" class="btn success" disabled>🃏 Spiel Starten</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Screen -->
+        <div id="screen-join" class="screen">
+            <h2>Join Game</h2>
+            <div id="reader-container">
+                <div id="reader"></div>
+            </div>
+            <p>Oder manuell beitreten:</p>
+            <div class="input-group">
+                <input type="text" id="manual-room-id" placeholder="Room ID (z.B. abc)">
+                <button id="btn-manual-join" class="btn primary">Join</button>
+            </div>
+            <div id="join-status"></div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="screen-game" class="screen">
+            <div id="poker-table">
+                <div id="community-cards"></div>
+                <div id="pot-info">Pot: 0</div>
+            </div>
+            <div id="opponents-area"></div>
+            <div id="player-area">
+                <div class="player-status">
+                    <span id="my-name">Player</span>
+                    <span id="my-chips" class="chips">💰 1000</span>
+                    <span id="current-bet">Bet: 0</span>
+                </div>
+                <div id="my-cards" class="cards-container"></div>
+                <div id="controls" class="controls-hidden">
+                    <button id="btn-fold" class="btn danger action-btn">Fold</button>
+                    <button id="btn-call" class="btn warn action-btn">Call</button>
+                    <div class="raise-group">
+                        <input type="range" id="raise-slider" min="20" max="1000" step="10">
+                        <button id="btn-raise" class="btn success action-btn">Raise <span
+                                id="raise-amount">20</span></button>
+                    </div>
+                </div>
+            </div>
+            <div id="game-log">Game Start...</div>
+        </div>
+    </div>
+
+    <!-- Audio -->
+    <audio id="snd-click" preload="auto"></audio>
+    <audio id="snd-chip" preload="auto"></audio>
+    <audio id="snd-card" preload="auto"></audio>
+
+    <script src="webrtc.js"></script>
+    <script src="qr.js"></script>
+    <script src="cards.js"></script>
+    <script src="app.js"></script>
+
+    <!-- Update Banner -->
+    <div id="update-banner" style="
+        display:none; position:fixed; bottom:0; left:0; right:0; z-index:99999;
+        background:linear-gradient(90deg,#1a5c2e,#d4a017);
+        color:#fff; padding:14px 20px; text-align:center;
+        font-size:1rem; font-weight:bold; gap:15px;
+        align-items:center; justify-content:center; flex-wrap:wrap;">
+        🔄 Neue Version verfügbar!
+        <button onclick="doUpdate()"
+            style="background:#fff;color:#1a5c2e;border:none;padding:8px 20px;border-radius:20px;font-weight:bold;cursor:pointer;font-size:1rem;">
+            Jetzt aktualisieren
+        </button>
+        <button onclick="forceNuke()"
+            style="background:rgba(0,0,0,0.35);color:#fff;border:1px solid #fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:0.9rem;">
+            Cache leeren &amp; neu laden
+        </button>
+    </div>
+
+    <script>
+        let waitingSW = null;
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    console.log('[PWA] SW registered:', reg.scope);
+                    if (reg.waiting) { waitingSW = reg.waiting; showUpdateBanner(); }
+                    reg.addEventListener('updatefound', () => {
+                        const nw = reg.installing;
+                        nw.addEventListener('statechange', () => {
+                            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                                waitingSW = nw; showUpdateBanner();
+                            }
+                        });
+                    });
+                }).catch(err => console.log('[PWA] SW failed:', err));
+                navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+            });
+        }
+        function showUpdateBanner() { document.getElementById('update-banner').style.display = 'flex'; }
+        function doUpdate() { if (waitingSW) waitingSW.postMessage({ type: 'SKIP_WAITING' }); window.location.reload(true); }
+        async function forceNuke() {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+            window.location.reload(true);
+        }
+    </script>
+</body>
+
+</html>
