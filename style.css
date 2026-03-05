@@ -11,6 +11,9 @@
     --warn: #e6ac00;
     --gold: #d4a017;
     --text: #f5f0e8;
+    --wood: #2c1a11;
+    --wood-light: #3d2618;
+    --chalk: #e8e8e8;
 }
 
 * {
@@ -258,15 +261,98 @@ h1.logo {
 #screen-host {
     justify-content: center;
     padding: 30px;
+    background:
+        /* Overhead lamp light pools */
+        radial-gradient(circle at 30% 20%, rgba(255, 200, 100, 0.15) 0%, transparent 60%),
+        radial-gradient(circle at 70% 20%, rgba(255, 200, 100, 0.15) 0%, transparent 60%),
+        /* Darker wood floor/wall feel */
+        linear-gradient(to bottom, #1a0f0a 0%, #0a0503 100%),
+        /* Wood grain pattern */
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1) 1px, transparent 1px, transparent 10px),
+        repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1) 1px, transparent 1px, transparent 10px);
+}
+
+/* Pub Frame for QR and Player List */
+.pub-frame {
+    background: #0d0d0d;
+    border: 12px solid #2a1810;
+    border-top-color: #3d2418;
+    border-bottom-color: #1a0f0a;
+    box-shadow:
+        inset 0 0 20px rgba(0, 0, 0, 0.8),
+        0 20px 40px rgba(0, 0, 0, 0.6);
+    padding: 20px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.pub-frame::after {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 4px;
+    background: #444;
+    border-radius: 2px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.chalkboard {
+    background: #1a1c1e;
+    color: var(--chalk);
+    padding: 20px;
+    border: 8px solid #3d2618;
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+    font-family: 'Georgia', serif;
+    min-width: 300px;
+}
+
+.chalkboard h3 {
+    border-bottom: 2px dashed #444;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #ffd700;
+}
+
+.chalkboard ul {
+    list-style: none;
+    text-align: left;
+    font-size: 1.2rem;
+}
+
+.chalkboard ul li {
+    margin-bottom: 8px;
+    padding-left: 15px;
+    position: relative;
+}
+
+.chalkboard ul li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
 }
 
 .host-layout {
     display: flex;
-    gap: 40px;
-    align-items: flex-start;
+    gap: 4vh;
+    align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 900px;
+}
+
+#localhost-warning {
+    background: #850000;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    border: 1px solid red;
+    max-width: 400px;
 }
 
 .host-left {
@@ -359,7 +445,8 @@ input[type="text"] {
 #poker-table {
     flex: 1;
     width: 90%;
-    margin-top: 20px;
+    max-height: 70vh;
+    margin-top: 10px;
     border: 15px solid var(--table-border);
     border-radius: 200px;
     background: var(--table-color);
@@ -368,42 +455,40 @@ input[type="text"] {
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+    transition: transform 0.3s ease;
+}
+
+#poker-table.host-view {
+    transform: scale(1.15) translateY(-20px);
 }
 
 #community-cards {
     display: flex;
     gap: 10px;
-    height: 120px;
+    height: 110px;
+    justify-content: center;
 }
 
-/* SVG card (htdebeer/SVG-cards) */
-.card-container {
-    position: relative;
-    display: inline-block;
-}
-
+/* Card Elements (CardMeister) */
 .card-svg {
     height: 110px;
     width: auto;
+    aspect-ratio: 2.5 / 3.5;
+    display: inline-block;
     filter: drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.55));
     border-radius: 6px;
     flex-shrink: 0;
+    --card-radius: 6px;
+}
+
+#my-cards .card-svg {
+    height: 170px;
 }
 
 .card-text-fallback {
-    display: block;
-    /* Support for text fallback cards */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 2rem;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 4px black;
-    pointer-events: none;
-    z-index: 5;
+    display: none;
+    /* SVG Cards are now reliable */
 }
 
 .card-fallback.back {
@@ -661,9 +746,85 @@ input[type="text"] {
     color: #ccc;
 }
 
+/* ========================================================
+   RESPONSIVE FIXES (Height-based)
+   ======================================================== */
+@media (max-height: 500px) {
+    #poker-table {
+        transform: scale(0.85) translateY(-10px) !important;
+        margin-top: 5px;
+    }
+
+    #poker-table.host-view {
+        transform: scale(0.95) translateY(-15px) !important;
+    }
+
+    .host-layout {
+        gap: 15px;
+    }
+
+    .host-left h2 {
+        font-size: 1.1rem;
+    }
+
+    #qrcode img,
+    #qrcode canvas {
+        width: 180px !important;
+        height: 180px !important;
+    }
+
+    .qr-hint {
+        font-size: 0.75rem;
+    }
+
+    #community-cards {
+        height: 80px;
+    }
+
+    .card-svg {
+        height: 80px;
+    }
+
+    #my-cards .card-svg {
+        height: 140px;
+    }
+
+    .action-hud {
+        bottom: 5px;
+        gap: 10px;
+    }
+
+    .btn-action {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        height: 50px;
+    }
+
+    #pot-info {
+        top: 5px;
+        font-size: 1rem;
+    }
+}
+
+@media (max-height: 400px) {
+    #poker-table {
+        transform: scale(0.75) translateY(0) !important;
+    }
+
+    #poker-table.host-view {
+        transform: scale(0.85) translateY(-5px) !important;
+    }
+
+    #qrcode img,
+    #qrcode canvas {
+        width: 150px !important;
+        height: 150px !important;
+    }
+}
+
 #game-log {
     position: absolute;
-    bottom: 30vh;
+    bottom: 25vh;
     left: 20px;
     width: 300px;
     max-height: 150px;

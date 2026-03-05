@@ -9,23 +9,23 @@ const SVG_CARDS_URL = './assets/svg-cards.svg';
 // Aspect ratio of the card sprite (width/height)
 const CARD_ASPECT = 169.075 / 244.640;
 
-// Map our internal rank letters → htdebeer rank IDs
+// Map our internal rank letters → CardMeister cid rank strings
 const RANK_MAP = {
-    'A': '1',
+    'A': 'A',
     '2': '2', '3': '3', '4': '4', '5': '5',
     '6': '6', '7': '7', '8': '8', '9': '9',
     'T': '10',
-    'J': 'jack',
-    'Q': 'queen',
-    'K': 'king'
+    'J': 'J',
+    'Q': 'Q',
+    'K': 'K'
 };
 
-// Map our suit symbols → htdebeer suit names
+// Map our suit symbols → CardMeister cid suit letters
 const SUIT_MAP = {
-    '♠': 'spade',
-    '♥': 'heart',
-    '♦': 'diamond',
-    '♣': 'club'
+    '♠': 's',
+    '♥': 'h',
+    '♦': 'd',
+    '♣': 'c'
 };
 
 /**
@@ -33,15 +33,15 @@ const SUIT_MAP = {
  * cardString: e.g. "A♠", "T♥", "K♦", "hidden"
  */
 function getCardHTML(cardString) {
-    const svgId = cardString === 'hidden' || !cardString
-        ? 'back'
-        : `${RANK_MAP[cardString[0]]}_${SUIT_MAP[cardString[1]]}`;
+    if (cardString === 'hidden' || !cardString) {
+        return `<playing-card class="card-svg" aria-label="hidden card"></playing-card>`;
+    }
 
-    return `
-        <svg class="card-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 169.075 244.640"
-             role="img" aria-label="${cardString === 'hidden' ? 'hidden card' : cardString}">
-            <use href="${SVG_CARDS_URL}#${svgId}"/>
-        </svg>`;
+    const rank = RANK_MAP[cardString[0]];
+    const suit = SUIT_MAP[cardString[1]];
+    const cid = `${rank}${suit}`;
+
+    return `<playing-card class="card-svg" cid="${cid}" aria-label="${cardString}"></playing-card>`;
 }
 
 // =============================================================

@@ -672,12 +672,13 @@ function renderGame(state, myId) {
         playerArea.style.display = 'none';
         table.style.display = 'flex';
         oppArea.style.display = 'flex';
-        table.style.transform = 'scale(1.15) translateY(-20px)';
+        table.classList.add('host-view');
     } else {
         // PHONE VIEW: Controller only (Cards + Buttons)
         playerArea.style.display = 'flex';
         table.style.display = 'none';
         oppArea.style.display = 'none';
+        table.classList.remove('host-view');
         playerArea.style.height = '100vh';
         playerArea.style.justifyContent = 'center';
     }

@@ -14,6 +14,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- PeerJS for WebRTC Signaling -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="cardmeister.js"></script>
 </head>
 
 <body>
@@ -42,9 +43,9 @@
         <!-- Host Screen (Spectator / TV Table) -->
         <div id="screen-host" class="screen">
             <div class="host-layout">
-                <!-- Left: QR + URL -->
-                <div class="host-left">
-                    <h2>Lobby: <span id="lobby-id">...</span></h2>
+                <!-- Left: QR + URL framed as a Pub Sign -->
+                <div class="host-left pub-frame">
+                    <h2 style="margin-bottom:15px;">Club Lobby</h2>
                     <!-- LOCALHOST WARNING -->
                     <div id="localhost-warning"
                         style="display: none; background: #850000; padding:10px; margin-bottom:10px; border-radius:8px; font-size:14px; border:1px solid red;">
@@ -53,17 +54,21 @@
                         deine Netzwerk-IP (z.B. 192.168.178.x:8080) um Handys via QR-Code zu verbinden.
                     </div>
 
-                    <div id="qrcode"></div>
-                    <p class="qr-hint">Scan zum Beitreten oder:<br><strong id="host-url">...</strong></p>
+                    <div id="qrcode" style="background:white; padding:15px; border-radius:4px;"></div>
+                    <p class="qr-hint" style="margin-top:15px;">Room ID: <strong id="lobby-id"
+                            style="color:var(--gold)">...</strong><br>Scan zum Beitreten</p>
+                    <p style="font-size: 0.7rem; color:#666; margin-top:5px;" id="host-url">...</p>
                 </div>
-                <!-- Right: Players -->
+
+                <!-- Right: Players on a Chalkboard -->
                 <div class="host-right">
-                    <div class="players-container">
-                        <h3>Spieler (<span id="player-count">0</span>)</h3>
+                    <div class="chalkboard">
+                        <h3>Patrons (<span id="player-count">0</span>)</h3>
                         <ul id="players-list">Warte auf Spieler...</ul>
 
-                        <div id="admin-wait-msg" style="margin-top:20px; color:var(--gold); font-weight:bold;">
-                            Warte auf Game Admin (Handy 1), um das Spiel zu starten...
+                        <div id="admin-wait-msg"
+                            style="margin-top:30px; color:var(--gold); font-size: 0.9rem; opacity: 0.8; font-style: italic;">
+                            The game starts when the first guest is ready.
                         </div>
                     </div>
                 </div>
