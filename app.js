@@ -547,15 +547,21 @@ function broadcastGameState() {
         if (p.isBot) return;
 
         let stateCopy = JSON.parse(JSON.stringify(gameState));
+        const myIdNorm = String(p.id).toLowerCase().trim();
+
         if (stateCopy.phase !== 'showdown') {
             stateCopy.players.forEach(op => {
-                // Defensive ID matching for card hiding
-                if (String(op.id).trim() !== String(p.id).trim()) {
+                const opIdNorm = String(op.id).toLowerCase().trim();
+                if (opIdNorm !== myIdNorm) {
                     op.cards = op.cards.map(() => 'hidden');
                 }
             });
         }
-        console.log(`📡 Sende State an ID: ${p.id}`, stateCopy.players.find(pl => String(pl.id).trim() === String(p.id).trim())?.cards || 'KEINE KARTEN');
+
+        // Host Diagnostic Log
+        const myPlayerInState = stateCopy.players.find(pl => String(pl.id).toLowerCase().trim() === myIdNorm);
+        console.log(`📡 Broadcast to ${p.id}: Cards=${JSON.stringify(myPlayerInState?.cards || [])}`);
+
         sendTo(p.id, { type: 'state', state: stateCopy });
     });
 
@@ -563,7 +569,6 @@ function broadcastGameState() {
     let hostStateCopy = JSON.parse(JSON.stringify(gameState));
     if (hostStateCopy.phase !== 'showdown') {
         hostStateCopy.players.forEach(op => {
-            // Hide ALL cards from the TV until showdown
             op.cards = op.cards.map(() => 'hidden');
         });
     }
@@ -639,39 +644,53 @@ function renderGame(state, myId) {
     if (state.phase === 'lobby') {
         const adminCount = document.getElementById('admin-player-count');
         if (adminCount) adminCount.innerText = state.players.length;
-        return; // Don't show game screen yet
+        return;
+    }
+
+    // Client-side console diagnostic
+    if (myId !== 'host') {
+        console.log("--- Received State Update ---");
+        console.table(state.players.map(p => ({ id: p.id, cards: p.cards.join(','), chips: p.chips })));
     }
 
     showScreen('screen-game');
     document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
-    // Debug info update
     const degEl = document.getElementById('debug-info');
     const debugIdEl = document.getElementById('debug-my-id');
-    if (debugIdEl) debugIdEl.innerText = String(myId).slice(0, 8);
+    const myIdNorm = String(myId).toLowerCase().trim();
 
-    if (degEl) {
-        degEl.innerText = `Phase: ${state.phase} | ID am Tisch gefunden: ${state.players.some(p => String(p.id).trim() === String(myId).trim()) ? 'JA' : 'NEIN'}`;
-    }
+    if (debugIdEl) debugIdEl.innerText = myIdNorm.slice(0, 8);
 
-    // TV / Spectator scaling fix
+    // UI Separation Logic
     const playerArea = document.getElementById('player-area');
     const table = document.getElementById('poker-table');
+    const oppArea = document.getElementById('opponents-area');
+
     if (myId === 'host' && !soloMode) {
+        // TV VIEW: Table only
         playerArea.style.display = 'none';
         table.style.display = 'flex';
-        table.style.transform = 'scale(1.05)';
-        table.style.marginTop = '0';
+        oppArea.style.display = 'flex';
+        table.style.transform = 'scale(1.15) translateY(-20px)';
     } else {
+        // PHONE VIEW: Controller only (Cards + Buttons)
         playerArea.style.display = 'flex';
-        table.style.transform = 'scale(1)';
+        table.style.display = 'none';
+        oppArea.style.display = 'none';
+        playerArea.style.height = '100vh';
+        playerArea.style.justifyContent = 'center';
+    }
+
+    if (degEl) {
+        const found = state.players.some(p => String(p.id).toLowerCase().trim() === myIdNorm);
+        degEl.innerText = `Phase: ${state.phase} | ID am Tisch gefunden: ${found ? 'JA' : 'NEIN'}`;
     }
 
     const commArea = document.getElementById('community-cards');
     commArea.innerHTML = '';
     state.communityCards.forEach(c => { commArea.innerHTML += getCardHTML(c); });
 
-    const oppArea = document.getElementById('opponents-area');
     oppArea.innerHTML = '';
 
     let turnPlayer = state.players[state.turnIndex];
@@ -679,10 +698,7 @@ function renderGame(state, myId) {
 
     let pFound = false;
     state.players.forEach((p, idx) => {
-        // Log for debugging (only once per render)
-        if (idx === 0) console.log("State IDs:", state.players.map(pl => pl.id), "My ID:", myId);
-
-        if (String(p.id).trim() === String(myId).trim()) {
+        if (String(p.id).toLowerCase().trim() === myIdNorm) {
             pFound = true;
             document.getElementById('my-name').innerText = p.name;
             document.getElementById('my-chips').innerText = `💰 ${p.chips}`;
