@@ -392,7 +392,8 @@ input[type="text"] {
 }
 
 .card-text-fallback {
-    display: none;
+    display: block;
+    /* Support for text fallback cards */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -402,6 +403,7 @@ input[type="text"] {
     color: white;
     text-shadow: 2px 2px 4px black;
     pointer-events: none;
+    z-index: 5;
 }
 
 .card-fallback.back {

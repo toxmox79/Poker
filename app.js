@@ -549,10 +549,13 @@ function broadcastGameState() {
         let stateCopy = JSON.parse(JSON.stringify(gameState));
         if (stateCopy.phase !== 'showdown') {
             stateCopy.players.forEach(op => {
-                // Hide everyone else's cards from this client
-                if (op.id !== p.id) op.cards = op.cards.map(() => 'hidden');
+                // Defensive ID matching for card hiding
+                if (String(op.id).trim() !== String(p.id).trim()) {
+                    op.cards = op.cards.map(() => 'hidden');
+                }
             });
         }
+        console.log(`📡 Sende State an ID: ${p.id}`, stateCopy.players.find(pl => String(pl.id).trim() === String(p.id).trim())?.cards || 'KEINE KARTEN');
         sendTo(p.id, { type: 'state', state: stateCopy });
     });
 
@@ -642,6 +645,15 @@ function renderGame(state, myId) {
     showScreen('screen-game');
     document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
+    // Debug info update
+    const degEl = document.getElementById('debug-info');
+    const debugIdEl = document.getElementById('debug-my-id');
+    if (debugIdEl) debugIdEl.innerText = String(myId).slice(0, 8);
+
+    if (degEl) {
+        degEl.innerText = `Phase: ${state.phase} | ID am Tisch gefunden: ${state.players.some(p => String(p.id).trim() === String(myId).trim()) ? 'JA' : 'NEIN'}`;
+    }
+
     // TV / Spectator scaling fix
     const playerArea = document.getElementById('player-area');
     const table = document.getElementById('poker-table');
@@ -667,8 +679,12 @@ function renderGame(state, myId) {
 
     let pFound = false;
     state.players.forEach((p, idx) => {
-        if (p.id === myId) {
-            pFound = true; document.getElementById('my-name').innerText = p.name;
+        // Log for debugging (only once per render)
+        if (idx === 0) console.log("State IDs:", state.players.map(pl => pl.id), "My ID:", myId);
+
+        if (String(p.id).trim() === String(myId).trim()) {
+            pFound = true;
+            document.getElementById('my-name').innerText = p.name;
             document.getElementById('my-chips').innerText = `💰 ${p.chips}`;
             document.getElementById('my-current-bet').innerText = `Round Bet: ${p.bet}`;
 
@@ -680,7 +696,6 @@ function renderGame(state, myId) {
                 myCardsArea.innerHTML = '<div style="color:red; font-size:0.8rem;">Warte auf Karten...</div>';
             }
 
-            let pFound = true;
             const controls = document.getElementById('controls');
             if (isMyTurn && state.phase !== 'showdown') {
                 controls.classList.remove('controls-hidden');
