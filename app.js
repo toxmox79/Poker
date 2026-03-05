@@ -48,6 +48,18 @@ document.querySelectorAll('.host-bot-adj').forEach(btn => {
     });
 });
 
+document.querySelectorAll('.admin-bot-adj').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        let delta = parseInt(e.target.getAttribute('data-delta'));
+        let input = document.getElementById('admin-bot-count');
+        let display = document.getElementById('admin-bot-count-display');
+        let current = parseInt(input.value);
+        let next = Math.max(0, Math.min(8, current + delta));
+        input.value = next;
+        display.innerText = next;
+    });
+});
+
 function updateHostBots() {
     // Remove existing bots, then add correct number
     gameState.players = gameState.players.filter(p => !p.isBot);
@@ -164,42 +176,67 @@ document.getElementById('btn-host').addEventListener('click', () => {
     showScreen('screen-host');
     soloMode = false;
     hostBotCount = 0;
-    gameState.players = []; // reset
+    gameState.players = []; // reset (host is NOT a player anymore)
+
+    // Check for localhost warning
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        document.getElementById('localhost-warning').style.display = 'block';
+    } else {
+        document.getElementById('localhost-warning').style.display = 'none';
+    }
 
     initHost((roomId) => {
         gameState.hostId = roomId;
         myPlayerId = 'host';
-        gameState.players.unshift({
-            id: 'host', name: 'Host Player', chips: 1000, bet: 0,
-            cards: [], active: true, folded: false, isBot: false
-        });
 
         const hostUrl = `${window.location.origin}${window.location.pathname}#join?room=${roomId}`;
         showHostQR(hostUrl);
         updateLobbyUI();
         document.getElementById('lobby-id').innerText = roomId;
-        // Start only enabled once bots or guests are added
     }, (peerId, data) => {
-        handleClientAction(peerId, data);
+        if (data.type === 'admin_start_game') {
+            // Admin triggered start
+            setupBotsAndBlinds(data.config);
+            startGame();
+        } else {
+            handleClientAction(peerId, data);
+        }
     }, (peerId) => {
+        // New player connected
+        let isFirst = gameState.players.length === 0;
+
         gameState.players.push({
-            id: peerId, name: `Spieler ${gameState.players.length + 1}`,
+            id: peerId, name: `Spieler ${gameState.players.length + 1}${isFirst ? ' 👑' : ''}`,
             chips: 1000, bet: 0, cards: [], active: true, folded: false, isBot: false
         });
+
+        if (isFirst) {
+            // Grant admin rights to the first connected player
+            sendTo(peerId, { type: 'admin_granted' });
+        }
+
         updateLobbyUI();
-        document.getElementById('btn-start').disabled = false;
         broadcastGameState();
     });
 });
 
-document.getElementById('btn-start').addEventListener('click', () => {
+document.getElementById('btn-admin-start').addEventListener('click', () => {
     playSound('click');
-    // In host multiplayer, sync the selected bot count before starting
-    if (!soloMode) {
-        updateHostBots();
-    }
-    startGame();
+    let bots = parseInt(document.getElementById('admin-bot-count').value);
+    // Hardcoded blinds for now: 10/20. Could be expanded later.
+    sendToHost({ type: 'admin_start_game', config: { bots: bots, smallBlind: 10, bigBlind: 20 } });
 });
+
+function setupBotsAndBlinds(config) {
+    // Add bots before starting
+    const numBots = Math.max(0, config.bots);
+    for (let i = 0; i < numBots; i++) {
+        gameState.players.push({
+            id: `bot_${i}`, name: BOT_NAMES[i], chips: 1000, bet: 0,
+            cards: [], active: true, folded: false, isBot: true
+        });
+    }
+}
 
 function updateLobbyUI() {
     const list = document.getElementById('players-list');
@@ -209,7 +246,14 @@ function updateLobbyUI() {
         li.innerText = p.name;
         list.appendChild(li);
     });
-    document.getElementById('player-count').innerText = gameState.players.length;
+
+    // The player array length in lobby includes bots if they were added.
+    let humanCount = gameState.players.length;
+    document.getElementById('player-count').innerText = humanCount;
+
+    // Broadcast the updated count to the Admin screen if it exists
+    let adminPlayerCountEl = document.getElementById('admin-player-count');
+    if (adminPlayerCountEl) adminPlayerCountEl.innerText = humanCount;
 }
 
 // ==========================
@@ -234,12 +278,13 @@ function startGame() {
         p.bet = 0;
         p.active = true;
         p.folded = false;
+        p.actedInPhase = false;
     });
 
     gameState.dealerIndex = (gameState.dealerIndex + 1) % gameState.players.length;
     let sbIndex = (gameState.dealerIndex + 1) % gameState.players.length;
     let bbIndex = (gameState.dealerIndex + 2) % gameState.players.length;
-    gameState.turnIndex = (gameState.dealerIndex + 3) % gameState.players.length;
+    gameState.turnIndex = (gameState.dealerIndex + 3) % gameState.players.length; // UTG acts first
 
     // Post blinds
     let sb = gameState.players[sbIndex];
@@ -248,7 +293,6 @@ function startGame() {
     let bbAmount = Math.min(20, bb.chips);
     sb.chips -= sbAmount; sb.bet = sbAmount;
     bb.chips -= bbAmount; bb.bet = bbAmount;
-    gameState.pot += sbAmount + bbAmount;
     gameState.currentBet = bbAmount;
 
     addLog(`--- Neue Runde! Dealer: ${gameState.players[gameState.dealerIndex].name} ---`);
@@ -260,6 +304,13 @@ function startGame() {
 }
 
 function nextPhase() {
+    // Gather all bets into the main pot
+    gameState.players.forEach(p => {
+        gameState.pot += p.bet;
+        p.bet = 0;
+    });
+    gameState.currentBet = 0;
+
     if (gameState.phase === 'pre-flop') {
         gameState.phase = 'flop';
         gameState.communityCards.push(gameState.deck.pop(), gameState.deck.pop(), gameState.deck.pop());
@@ -275,11 +326,31 @@ function nextPhase() {
         return;
     }
 
-    // Reset bets for new phase
-    gameState.currentBet = 0;
-    gameState.players.forEach(p => { p.bet = 0; });
-    gameState.turnIndex = (gameState.dealerIndex + 1) % gameState.players.length;
-    skipFoldedOrBankruptPlayers();
+    // First active player after dealer starts
+    gameState.turnIndex = gameState.dealerIndex;
+    gameState.players.forEach(p => p.actedInPhase = false);
+    goToNextActivePlayer();
+
+    // If only 1 player is left who is not all-in, and everyone else is all in, we can auto-resolve
+    let playersWithAction = gameState.players.filter(p => !p.folded && p.chips > 0);
+    if (playersWithAction.length <= 1) {
+        // Fast forward to showdown
+        addLog(`→ Fast Forward to Showdown (All-In)`);
+        while (gameState.phase !== 'showdown') {
+            if (gameState.phase === 'flop') {
+                gameState.communityCards.push(gameState.deck.pop());
+                gameState.phase = 'turn';
+            } else if (gameState.phase === 'turn') {
+                gameState.communityCards.push(gameState.deck.pop());
+                gameState.phase = 'river';
+            } else if (gameState.phase === 'river') {
+                gameState.phase = 'showdown';
+                resolveShowdown();
+                return;
+            }
+        }
+        return;
+    }
 
     addLog(`→ Phase: ${gameState.phase}`);
     broadcastGameState();
@@ -326,8 +397,10 @@ function log(msg) {
 }
 
 function advanceTurn() {
-    let activePlayers = gameState.players.filter(p => !p.folded && p.chips >= 0);
+    let activePlayers = gameState.players.filter(p => !p.folded);
     if (activePlayers.length === 1) {
+        // Everyone else folded
+        gameState.players.forEach(p => { gameState.pot += p.bet; p.bet = 0; });
         activePlayers[0].chips += gameState.pot;
         gameState.pot = 0;
         addLog(`${activePlayers[0].name} gewinnt kampflos.`);
@@ -337,11 +410,16 @@ function advanceTurn() {
         return;
     }
 
-    // Check if all active bettors are square
+    // Check if round is complete:
+    // Every active player must have acted this phase AND either called the max bet or gone all-in
     let roundComplete = true;
     for (let p of gameState.players) {
-        if (!p.folded && p.chips > 0 && p.bet < gameState.currentBet) {
-            roundComplete = false; break;
+        if (!p.folded) {
+            if (!p.actedInPhase) roundComplete = false;
+            // if they still have chips and haven't matched the current bet, not done
+            if (p.chips > 0 && p.bet < gameState.currentBet) {
+                roundComplete = false;
+            }
         }
     }
 
@@ -350,21 +428,27 @@ function advanceTurn() {
         return;
     }
 
-    gameState.turnIndex = (gameState.turnIndex + 1) % gameState.players.length;
-    skipFoldedOrBankruptPlayers();
+    goToNextActivePlayer();
+
+    // Safety check - if we looped back and everyone is allin/folded, next phase immediately
+    let playersWithAction = gameState.players.filter(p => !p.folded && p.chips > 0 && (p.bet < gameState.currentBet || !p.actedInPhase));
+    if (playersWithAction.length === 0) {
+        nextPhase();
+        return;
+    }
 
     broadcastGameState();
     renderGame(gameState, myPlayerId);
     scheduleBotTurn();
 }
 
-function skipFoldedOrBankruptPlayers() {
+function goToNextActivePlayer() {
     let loopProtect = 0;
-    while (loopProtect < gameState.players.length + 1) {
+    while (loopProtect < gameState.players.length) {
+        gameState.turnIndex = (gameState.turnIndex + 1) % gameState.players.length;
         let p = gameState.players[gameState.turnIndex];
-        if (p.folded || p.chips === 0) {
-            gameState.turnIndex = (gameState.turnIndex + 1) % gameState.players.length;
-        } else {
+        // skip if folded or all-in (chips === 0 and matched max possible for them)
+        if (!p.folded && p.chips > 0) {
             break;
         }
         loopProtect++;
@@ -376,6 +460,7 @@ function handleClientAction(peerId, action) {
     if (pIdx === -1 || pIdx !== gameState.turnIndex || gameState.phase === 'showdown') return;
 
     let p = gameState.players[pIdx];
+    p.actedInPhase = true;
 
     if (action.type === 'fold') {
         p.folded = true;
@@ -385,18 +470,30 @@ function handleClientAction(peerId, action) {
         let diff = Math.min(toCall, p.chips);
         p.chips -= diff;
         p.bet += diff;
-        gameState.pot += diff;
-        addLog(diff === 0 ? `${p.name} checkt.` : `${p.name} callt ${diff}.`);
+        if (p.chips === 0) addLog(`${p.name} ALL-IN (Call).`);
+        else addLog(diff === 0 ? `${p.name} checkt.` : `${p.name} callt ${diff}.`);
     } else if (action.type === 'raise') {
         let amount = action.amount;
         let totalVal = gameState.currentBet + amount;
         let toPutIn = totalVal - p.bet;
+        // if the amount requested to raise exceeds chips, cap it at all in
         let diff = Math.min(toPutIn, p.chips);
+
+        // Ensure minimum raise logic if not going all-in
+        let callCurrent = gameState.currentBet - p.bet;
+        let actualRaiseAdded = diff - callCurrent;
+
         p.chips -= diff;
         p.bet += diff;
-        gameState.pot += diff;
         if (p.bet > gameState.currentBet) gameState.currentBet = p.bet;
-        addLog(`${p.name} erhöht um ${amount}.`);
+
+        if (p.chips === 0) addLog(`${p.name} ALL-IN! (${p.bet})`);
+        else addLog(`${p.name} erhöht um ${actualRaiseAdded} auf ${p.bet}.`);
+
+        // Raising re-opens the action for everyone else still active
+        gameState.players.forEach(op => {
+            if (op.id !== p.id && !op.folded) op.actedInPhase = false;
+        });
     }
 
     playSound('chip');
@@ -404,21 +501,31 @@ function handleClientAction(peerId, action) {
 }
 
 function broadcastGameState() {
-    if (soloMode) return; // no network in solo mode
+    if (soloMode) return;
+
+    // 1. Send personalized state to all human clients
     gameState.players.forEach(p => {
-        if (p.isBot) return; // no network for bots
+        if (p.isBot) return;
+
         let stateCopy = JSON.parse(JSON.stringify(gameState));
         if (stateCopy.phase !== 'showdown') {
             stateCopy.players.forEach(op => {
+                // Hide everyone else's cards from this client
                 if (op.id !== p.id) op.cards = op.cards.map(() => 'hidden');
             });
         }
-        if (p.id === 'host') {
-            // host re-renders locally
-        } else {
-            sendTo(p.id, { type: 'state', state: stateCopy });
-        }
+        sendTo(p.id, { type: 'state', state: stateCopy });
     });
+
+    // 2. Render locally for the TV Host (Spectator View)
+    let hostStateCopy = JSON.parse(JSON.stringify(gameState));
+    if (hostStateCopy.phase !== 'showdown') {
+        hostStateCopy.players.forEach(op => {
+            // Hide ALL cards from the TV until showdown
+            op.cards = op.cards.map(() => 'hidden');
+        });
+    }
+    renderGame(hostStateCopy, 'host');
 }
 
 // ==========================
@@ -428,12 +535,15 @@ function connectToRoom(roomId) {
     document.getElementById('join-status').innerText = "Verbinde...";
     joinHost(roomId, (id) => {
         myPlayerId = id;
-        showScreen('screen-game');
+        document.getElementById('join-status').innerText = "Warte auf Spielstart durch Admin...";
     }, (data) => {
         if (data.type === 'state') {
             renderGame(data.state, myPlayerId);
         } else if (data.type === 'log') {
             addLog(data.msg);
+        } else if (data.type === 'admin_granted') {
+            document.getElementById('join-status').innerText = "";
+            showScreen('screen-admin-lobby');
         }
     }, (err) => {
         alert(err);
@@ -470,6 +580,16 @@ function renderGame(state, myId) {
     showScreen('screen-game');
     document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
+    // Explicitly hide the player HUD on the spectator TV
+    const playerArea = document.getElementById('player-area');
+    if (myId === 'host' && !soloMode) {
+        playerArea.style.display = 'none';
+        document.getElementById('poker-table').style.transform = 'scale(1.2) translateY(50px)';
+    } else {
+        playerArea.style.display = 'flex';
+        document.getElementById('poker-table').style.transform = '';
+    }
+
     const commArea = document.getElementById('community-cards');
     commArea.innerHTML = '';
     state.communityCards.forEach(c => { commArea.innerHTML += getCardHTML(c); });
@@ -484,7 +604,7 @@ function renderGame(state, myId) {
         if (p.id === myId) {
             document.getElementById('my-name').innerText = p.name;
             document.getElementById('my-chips').innerText = `💰 ${p.chips}`;
-            document.getElementById('current-bet').innerText = `Bet: ${p.bet}`;
+            document.getElementById('my-current-bet').innerText = `Round Bet: ${p.bet}`;
 
             const myCardsArea = document.getElementById('my-cards');
             myCardsArea.innerHTML = '';
@@ -498,7 +618,29 @@ function renderGame(state, myId) {
             }
 
             let toCall = state.currentBet - p.bet;
-            document.getElementById('btn-call').innerText = toCall > 0 ? `Call ${toCall}` : 'Check';
+            document.getElementById('btn-call').innerText = toCall > 0 ? `CALL ${toCall} (CHECK)` : 'CHECK';
+
+            // Adjust minimum raise text on button
+            let minRaise = toCall > 0 ? toCall * 2 : 20;
+            // Cap at chips
+            minRaise = Math.min(minRaise, p.chips);
+
+            // If they can't even call, they are forced all-in
+            if (p.chips <= toCall) {
+                document.getElementById('btn-call').innerText = `ALL-IN CALL (${p.chips})`;
+                document.getElementById('btn-raise').disabled = true;
+            } else {
+                document.getElementById('btn-raise').disabled = false;
+            }
+
+            // Init rotary dial min/max limits globally for the input handlers
+            window.currentMinRaise = minRaise;
+            window.currentMaxRaise = p.chips;
+
+            // Reset visually if the previous bet amount is now below min
+            if (window.currentRaiseAmount < minRaise) {
+                updateRaiseDial(minRaise);
+            }
 
         } else {
             let opDiv = document.createElement('div');
@@ -539,7 +681,7 @@ function addLog(msg) {
 }
 
 // ==========================
-// ACTION BUTTONS
+// ACTION BUTTONS & DIAL
 // ==========================
 document.getElementById('btn-fold').addEventListener('click', () => {
     playSound('click');
@@ -553,14 +695,97 @@ document.getElementById('btn-call').addEventListener('click', () => {
     else sendToHost({ type: 'call' });
 });
 
-const raiseSlider = document.getElementById('raise-slider');
-raiseSlider.addEventListener('input', (e) => {
-    document.getElementById('raise-amount').innerText = e.target.value;
-});
+// ROTARY DIAL LOGIC
+const throwDial = document.getElementById('raise-dial');
+const dialWheel = throwDial.querySelector('.dial-wheel');
+const raiseAmtEl = document.getElementById('raise-amount');
+
+window.currentRaiseAmount = 20;
+window.currentMinRaise = 20;
+window.currentMaxRaise = 1000;
+let isDraggingDial = false;
+let startAngle = 0;
+let currentRotation = 0;
+
+function getAngle(x, y, rect) {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return Math.atan2(y - cy, x - cx) * (180 / Math.PI);
+}
+
+function updateRaiseDial(amt) {
+    window.currentRaiseAmount = Math.max(window.currentMinRaise, Math.min(window.currentMaxRaise, amt));
+    raiseAmtEl.innerText = window.currentRaiseAmount;
+    if (window.currentRaiseAmount === window.currentMaxRaise) {
+        raiseAmtEl.innerText += " (ALL-IN)";
+        raiseAmtEl.style.color = "var(--danger)";
+    } else {
+        raiseAmtEl.style.color = "white";
+    }
+}
+
+function onDialStart(e) {
+    isDraggingDial = true;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    startAngle = getAngle(clientX, clientY, throwDial.getBoundingClientRect()) - currentRotation;
+    e.preventDefault();
+}
+
+function onDialMove(e) {
+    if (!isDraggingDial) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const newAngle = getAngle(clientX, clientY, throwDial.getBoundingClientRect());
+
+    let delta = newAngle - startAngle;
+
+    // Smooth endless looping delta (avoid jump at -180/180 degree split)
+    let rotationDiff = delta - currentRotation;
+    if (rotationDiff > 180) rotationDiff -= 360;
+    if (rotationDiff < -180) rotationDiff += 360;
+
+    currentRotation += rotationDiff;
+    dialWheel.style.transform = `rotate(${currentRotation}deg)`;
+
+    // Map rotation to raise amount (approx 10 chips per 10 degrees)
+    // To allow reaching 1000+ chips easily, make it scale exponentially or just use a multiplier
+    const range = window.currentMaxRaise - window.currentMinRaise;
+    // 1 full rotation (360) = 50% of range
+    const step = Math.floor(currentRotation / 5) * 10;
+
+    let nextAmt = window.currentMinRaise + step;
+
+    // Lock bounds visually based on dragging so they can reset by turning back
+    if (nextAmt < window.currentMinRaise) {
+        nextAmt = window.currentMinRaise;
+    }
+    if (nextAmt > window.currentMaxRaise) {
+        nextAmt = window.currentMaxRaise;
+    }
+
+    updateRaiseDial(nextAmt);
+}
+
+function onDialEnd() {
+    isDraggingDial = false;
+    startAngle = currentRotation; // lock in the baseline
+}
+
+// Mouse events
+throwDial.addEventListener('mousedown', onDialStart);
+window.addEventListener('mousemove', onDialMove);
+window.addEventListener('mouseup', onDialEnd);
+
+// Touch events
+throwDial.addEventListener('touchstart', onDialStart, { passive: false });
+window.addEventListener('touchmove', onDialMove, { passive: false });
+window.addEventListener('touchend', onDialEnd);
+
 
 document.getElementById('btn-raise').addEventListener('click', () => {
     playSound('chip');
-    let amount = parseInt(raiseSlider.value);
+    let amount = window.currentRaiseAmount;
     if (isHost || soloMode) handleClientAction(myPlayerId, { type: 'raise', amount });
     else sendToHost({ type: 'raise', amount });
 });
