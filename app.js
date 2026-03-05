@@ -19,8 +19,17 @@ function showScreen(id) {
 }
 
 function fullScreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(e => { });
+    let elem = document.documentElement;
+    if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(e => { console.log("Fullscreen blocked: ", e); });
+        } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+        } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+        }
     }
 }
 
@@ -29,34 +38,29 @@ function fullScreen() {
 // ==========================
 let botCount = 1; // Solo mode bot count (home screen not shown anymore, kept for solo)
 
-// Host-screen bot selector
-let hostBotCount = 0;
-document.querySelectorAll('.host-bot-adj').forEach(btn => {
-    btn.addEventListener('click', () => {
-        let delta = parseInt(btn.dataset.delta);
-        hostBotCount = Math.max(0, Math.min(2, hostBotCount + delta));
-        document.getElementById('host-bot-count').value = hostBotCount;
-        document.getElementById('host-bot-count-display').innerText = hostBotCount;
-        // Allow starting with bots even without human guests
-        if (hostBotCount > 0) {
-            document.getElementById('btn-start').disabled = false;
-        } else if (gameState.players.filter(p => !p.isBot).length < 2) {
-            document.getElementById('btn-start').disabled = true;
-        }
-        // Sync live bot list in game state lobby
-        updateHostBots();
-    });
-});
-
-document.querySelectorAll('.admin-bot-adj').forEach(btn => {
+// Unified Admin / Host UI Adjustments
+document.querySelectorAll('.admin-adj').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        let delta = parseInt(e.target.getAttribute('data-delta'));
-        let input = document.getElementById('admin-bot-count');
-        let display = document.getElementById('admin-bot-count-display');
+        const targetId = e.target.getAttribute('data-target');
+        const delta = parseInt(e.target.getAttribute('data-delta'));
+        const min = parseInt(e.target.getAttribute('data-min'));
+        const max = parseInt(e.target.getAttribute('data-max'));
+        const input = document.getElementById(targetId);
+        const display = document.getElementById(targetId + '-display');
+
         let current = parseInt(input.value);
-        let next = Math.max(0, Math.min(8, current + delta));
+        let next = Math.max(min, Math.min(max, current + delta));
         input.value = next;
-        display.innerText = next;
+
+        // Custom display formatting
+        if (e.target.hasAttribute('data-isblind')) {
+            display.innerText = `${next} / ${next * 2}`;
+        } else if (e.target.hasAttribute('data-istimer')) {
+            display.innerText = next === 0 ? 'Nie' : `Alle ${next} Runden`;
+        } else {
+            display.innerText = next;
+        }
+        playSound('click');
     });
 });
 
@@ -222,20 +226,38 @@ document.getElementById('btn-host').addEventListener('click', () => {
 
 document.getElementById('btn-admin-start').addEventListener('click', () => {
     playSound('click');
-    let bots = parseInt(document.getElementById('admin-bot-count').value);
-    // Hardcoded blinds for now: 10/20. Could be expanded later.
-    sendToHost({ type: 'admin_start_game', config: { bots: bots, smallBlind: 10, bigBlind: 20 } });
+    const config = {
+        bots: parseInt(document.getElementById('admin-bot-count').value),
+        startingChips: parseInt(document.getElementById('admin-chip-count').value),
+        smallBlind: parseInt(document.getElementById('admin-blind-base').value),
+        blindTimer: parseInt(document.getElementById('admin-blind-timer').value)
+    };
+    sendToHost({ type: 'admin_start_game', config: config });
 });
 
 function setupBotsAndBlinds(config) {
-    // Add bots before starting
+    // 1. Reset players to only human clients
+    gameState.players = gameState.players.filter(p => !p.isBot);
+
+    // 2. Set starting chips for everyone
+    gameState.players.forEach(p => {
+        p.chips = config.startingChips || 1000;
+        p.bet = 0;
+    });
+
+    // 3. Add bots with the same starting chips
     const numBots = Math.max(0, config.bots);
     for (let i = 0; i < numBots; i++) {
         gameState.players.push({
-            id: `bot_${i}`, name: BOT_NAMES[i], chips: 1000, bet: 0,
+            id: `bot_${i}`, name: BOT_NAMES[i % BOT_NAMES.length], chips: config.startingChips || 1000, bet: 0,
             cards: [], active: true, folded: false, isBot: true
         });
     }
+
+    // 4. Save blind rules
+    gameState.baseSmallBlind = config.smallBlind || 10;
+    gameState.blindTimer = config.blindTimer || 0;
+    gameState.roundCount = 0;
 }
 
 function updateLobbyUI() {
@@ -264,6 +286,22 @@ function startGame() {
     gameState.pot = 0;
     gameState.deck = shuffle(createDeck());
     gameState.communityCards = [];
+    gameState.roundCount = (gameState.roundCount || 0) + 1;
+
+    // Calculate dynamic blinds
+    let sbVal = gameState.baseSmallBlind || 10;
+    let bbVal = sbVal * 2;
+
+    // Blind Escalation: Double blinds every 'blindTimer' rounds if timer > 0
+    if (gameState.blindTimer > 0) {
+        let multipliers = Math.floor((gameState.roundCount - 1) / gameState.blindTimer);
+        if (multipliers > 0) {
+            let factor = Math.pow(2, multipliers);
+            sbVal *= factor;
+            bbVal *= factor;
+            addLog(`📈 Blinds erhöht auf ${sbVal} / ${bbVal}!`);
+        }
+    }
 
     // Remove bankrupt players
     gameState.players = gameState.players.filter(p => p.chips > 0);
@@ -289,13 +327,13 @@ function startGame() {
     // Post blinds
     let sb = gameState.players[sbIndex];
     let bb = gameState.players[bbIndex];
-    let sbAmount = Math.min(10, sb.chips);
-    let bbAmount = Math.min(20, bb.chips);
+    let sbAmount = Math.min(sbVal, sb.chips);
+    let bbAmount = Math.min(bbVal, bb.chips);
     sb.chips -= sbAmount; sb.bet = sbAmount;
     bb.chips -= bbAmount; bb.bet = bbAmount;
     gameState.currentBet = bbAmount;
 
-    addLog(`--- Neue Runde! Dealer: ${gameState.players[gameState.dealerIndex].name} ---`);
+    addLog(`--- Runde ${gameState.roundCount}! Blinds: ${sbVal}/${bbVal} ---`);
     broadcastGameState();
     renderGame(gameState, myPlayerId);
 
@@ -531,25 +569,40 @@ function broadcastGameState() {
 // ==========================
 // CLIENT JOIN
 // ==========================
+// Temporary storage for pending join
+let pendingRoomId = null;
+let pendingAdminStatus = false;
+
 function connectToRoom(roomId) {
     document.getElementById('join-status').innerText = "Verbinde...";
     joinHost(roomId, (id) => {
         myPlayerId = id;
-        document.getElementById('join-status').innerText = "Warte auf Spielstart durch Admin...";
+        pendingRoomId = roomId;
+        showScreen('screen-tap-to-join');
     }, (data) => {
         if (data.type === 'state') {
             renderGame(data.state, myPlayerId);
         } else if (data.type === 'log') {
             addLog(data.msg);
         } else if (data.type === 'admin_granted') {
-            document.getElementById('join-status').innerText = "";
-            showScreen('screen-admin-lobby');
+            pendingAdminStatus = true;
         }
     }, (err) => {
         alert(err);
         showScreen('screen-home');
     });
 }
+
+document.getElementById('btn-tap-to-join').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    if (pendingAdminStatus) {
+        showScreen('screen-admin-lobby');
+    } else {
+        showScreen('screen-game');
+        document.getElementById('join-status').innerText = "Warte auf Spielstart durch Admin...";
+    }
+});
 
 document.getElementById('btn-join').addEventListener('click', () => {
     fullScreen();
