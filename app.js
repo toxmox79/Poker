@@ -557,6 +557,7 @@ document.getElementById('btn-join').addEventListener('click', () => {
     showScreen('screen-join');
     startQRScanner((text) => {
         try {
+            fullScreen(); // re-trigger on successful scan
             const urlMatch = text.match(/room=([^&]+)/);
             connectToRoom(urlMatch ? urlMatch[1] : text);
         } catch (e) {
@@ -566,6 +567,7 @@ document.getElementById('btn-join').addEventListener('click', () => {
 });
 
 document.getElementById('btn-manual-join').addEventListener('click', () => {
+    fullScreen();
     let code = document.getElementById('manual-room-id').value;
     if (code) {
         if (html5QrCode) html5QrCode.stop().catch(e => { });
