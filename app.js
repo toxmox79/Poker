@@ -382,6 +382,7 @@ function nextPhase() {
                 gameState.communityCards.push(gameState.deck.pop());
                 gameState.phase = 'river';
             } else if (gameState.phase === 'river') {
+                gameState.communityCards.push(gameState.deck.pop());
                 gameState.phase = 'showdown';
                 resolveShowdown();
                 return;
@@ -641,14 +642,17 @@ function renderGame(state, myId) {
     showScreen('screen-game');
     document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
-    // Explicitly hide the player HUD on the spectator TV
+    // TV / Spectator scaling fix
     const playerArea = document.getElementById('player-area');
+    const table = document.getElementById('poker-table');
     if (myId === 'host' && !soloMode) {
         playerArea.style.display = 'none';
-        document.getElementById('poker-table').style.transform = 'scale(1.2) translateY(50px)';
+        table.style.display = 'flex';
+        table.style.transform = 'scale(1.05)';
+        table.style.marginTop = '0';
     } else {
         playerArea.style.display = 'flex';
-        document.getElementById('poker-table').style.transform = '';
+        table.style.transform = 'scale(1)';
     }
 
     const commArea = document.getElementById('community-cards');
@@ -661,16 +665,22 @@ function renderGame(state, myId) {
     let turnPlayer = state.players[state.turnIndex];
     let isMyTurn = turnPlayer && turnPlayer.id === myId;
 
+    let pFound = false;
     state.players.forEach((p, idx) => {
         if (p.id === myId) {
-            document.getElementById('my-name').innerText = p.name;
+            pFound = true; document.getElementById('my-name').innerText = p.name;
             document.getElementById('my-chips').innerText = `💰 ${p.chips}`;
             document.getElementById('my-current-bet').innerText = `Round Bet: ${p.bet}`;
 
             const myCardsArea = document.getElementById('my-cards');
             myCardsArea.innerHTML = '';
-            p.cards.forEach(c => { myCardsArea.innerHTML += getCardHTML(c); });
+            if (p.cards && p.cards.length > 0) {
+                p.cards.forEach(c => { myCardsArea.innerHTML += getCardHTML(c); });
+            } else if (state.phase !== 'lobby') {
+                myCardsArea.innerHTML = '<div style="color:red; font-size:0.8rem;">Warte auf Karten...</div>';
+            }
 
+            let pFound = true;
             const controls = document.getElementById('controls');
             if (isMyTurn && state.phase !== 'showdown') {
                 controls.classList.remove('controls-hidden');
@@ -681,12 +691,9 @@ function renderGame(state, myId) {
             let toCall = state.currentBet - p.bet;
             document.getElementById('btn-call').innerText = toCall > 0 ? `CALL ${toCall} (CHECK)` : 'CHECK';
 
-            // Adjust minimum raise text on button
             let minRaise = toCall > 0 ? toCall * 2 : 20;
-            // Cap at chips
             minRaise = Math.min(minRaise, p.chips);
 
-            // If they can't even call, they are forced all-in
             if (p.chips <= toCall) {
                 document.getElementById('btn-call').innerText = `ALL-IN CALL (${p.chips})`;
                 document.getElementById('btn-raise').disabled = true;
@@ -694,11 +701,9 @@ function renderGame(state, myId) {
                 document.getElementById('btn-raise').disabled = false;
             }
 
-            // Init rotary dial min/max limits globally for the input handlers
             window.currentMinRaise = minRaise;
             window.currentMaxRaise = p.chips;
 
-            // Reset visually if the previous bet amount is now below min
             if (window.currentRaiseAmount < minRaise) {
                 updateRaiseDial(minRaise);
             }
@@ -709,10 +714,8 @@ function renderGame(state, myId) {
             opDiv.className = `opponent ${isActive ? 'active' : ''}`;
             let isBotP = p.isBot;
 
-            // Show cards at showdown, or hidden face-down
             let cardsHtml;
             if (state.phase === 'showdown' || (soloMode && isBotP)) {
-                // In solo showdown, reveal bot cards
                 cardsHtml = p.cards.map(c => c === 'hidden'
                     ? '🂠'
                     : `<span class="${(c[1] === '♥' || c[1] === '♦') ? 'red' : ''}">${c[0] === 'T' ? '10' : c[0]}${c[1]}</span>`
@@ -722,7 +725,7 @@ function renderGame(state, myId) {
             }
 
             opDiv.innerHTML = `
-                <div>${p.name}${isBotP ? '' : ''}</div>
+                <div>${p.name}</div>
                 <div class="chip-count">💰 ${p.chips}</div>
                 <div class="status">${p.folded ? '❌ Folded' : 'Bet: ' + p.bet}</div>
                 <div style="font-size:1.4rem; letter-spacing:4px">${cardsHtml}</div>
@@ -730,6 +733,11 @@ function renderGame(state, myId) {
             oppArea.appendChild(opDiv);
         }
     });
+
+    if (myId !== 'host') {
+        const adminCount = document.getElementById('admin-player-count');
+        if (adminCount) adminCount.innerText = state.players.length;
+    }
 }
 
 function addLog(msg) {

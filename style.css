@@ -23,9 +23,10 @@
 body {
     background-color: var(--bg-color);
     color: var(--text);
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     user-select: none;
+    width: 100vw;
+    height: 100vh;
 }
 
 /* ========================================================
@@ -89,12 +90,15 @@ body {
 .screen {
     display: none;
     width: 100%;
-    min-height: 100%;
+    height: 100%;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 20px;
+    padding: 10px;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 .screen.active {
@@ -374,13 +378,43 @@ input[type="text"] {
 }
 
 /* SVG card (htdebeer/SVG-cards) */
+.card-container {
+    position: relative;
+    display: inline-block;
+}
+
 .card-svg {
-    /* Height drives size; width follows 169:244 aspect ratio */
     height: 110px;
     width: auto;
     filter: drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.55));
     border-radius: 6px;
     flex-shrink: 0;
+}
+
+.card-text-fallback {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 4px black;
+    pointer-events: none;
+}
+
+.card-fallback.back {
+    width: 76px;
+    height: 110px;
+    background: #0d47a1;
+    border: 2px solid white;
+    border-radius: 6px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
 }
 
 #pot-info {
@@ -473,10 +507,13 @@ input[type="text"] {
 }
 
 #my-cards .card-svg {
-    height: 220px;
-    /* Huge cards */
+    height: 160px;
     filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.8));
     transition: transform 0.2s;
+}
+
+#my-cards .card-text-fallback {
+    font-size: 4rem;
 }
 
 #my-cards .card-svg:hover {
