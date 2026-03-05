@@ -632,6 +632,12 @@ document.getElementById('btn-manual-join').addEventListener('click', () => {
 // RENDER
 // ==========================
 function renderGame(state, myId) {
+    if (state.phase === 'lobby') {
+        const adminCount = document.getElementById('admin-player-count');
+        if (adminCount) adminCount.innerText = state.players.length;
+        return; // Don't show game screen yet
+    }
+
     showScreen('screen-game');
     document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
