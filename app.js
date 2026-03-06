@@ -257,7 +257,8 @@ function startJoinMode() {
         try {
             fullScreen(); // re-trigger on successful scan
             const urlMatch = text.match(/room=([^&]+)/);
-            connectToRoom(urlMatch ? urlMatch[1] : text);
+            const roomId = urlMatch ? urlMatch[1] : text;
+            connectToRoom(roomId);
         } catch (e) {
             alert('Ungültiger QR Code');
         }
@@ -629,6 +630,11 @@ let pendingRoomId = null;
 let pendingAdminStatus = false;
 
 function connectToRoom(roomId) {
+    // Stop scanner if it was running (e.g. if we came from screen-join)
+    if (typeof stopQRScanner === 'function') {
+        stopQRScanner().catch(e => console.warn("Stop scanner failed:", e));
+    }
+
     document.getElementById('join-status').innerText = "Verbinde...";
     joinHost(roomId, (id) => {
         myPlayerId = id;
@@ -960,6 +966,8 @@ document.querySelectorAll('.game-action').forEach(btn => {
 // URL JOIN PARSE
 // ==========================
 window.addEventListener('load', () => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 1024;
+
     if (window.location.hash.startsWith('#join?room=')) {
         const roomId = window.location.hash.split('room=')[1];
         if (roomId) {
@@ -970,11 +978,19 @@ window.addEventListener('load', () => {
     }
 
     // Auto-Start Multiplayer
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 1024;
-
     if (isMobile) {
         startJoinMode();
     } else {
         startHostMode();
+    }
+});
+
+// Support joining via link while app is already open
+window.addEventListener('hashchange', () => {
+    if (window.location.hash.startsWith('#join?room=')) {
+        const roomId = window.location.hash.split('room=')[1];
+        if (roomId) {
+            connectToRoom(roomId);
+        }
     }
 });

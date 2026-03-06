@@ -1,4 +1,5 @@
-let html5QrCode;
+let html5QrCode = null;
+let isScannerRunning = false;
 
 function showHostQR(url) {
     const qrcodeContainer = document.getElementById('qrcode');
@@ -16,28 +17,44 @@ function showHostQR(url) {
     document.getElementById('host-url').innerText = url;
 }
 
-function startQRScanner(onSuccess) {
+async function stopQRScanner() {
+    if (html5QrCode && isScannerRunning) {
+        try {
+            await html5QrCode.stop();
+            isScannerRunning = false;
+        } catch (err) {
+            console.warn("Scanner stop error (might be already stopped):", err);
+        }
+    }
+}
+
+async function startQRScanner(onSuccess) {
+    // 1. Ensure any previous instance is stopped and cleared
+    await stopQRScanner();
     const readerContainer = document.getElementById("reader");
-    readerContainer.innerHTML = ""; // Clear existing
+    readerContainer.innerHTML = "";
 
     try {
-        html5QrCode = new Html5Qrcode("reader");
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        html5QrCode.start({ facingMode: "environment" }, config,
-            (decodedText) => {
-                html5QrCode.stop().then(() => {
-                    onSuccess(decodedText);
-                }).catch(err => console.error("Filter stop error", err));
+        await html5QrCode.start({ facingMode: "environment" }, config,
+            async (decodedText) => {
+                isScannerRunning = true; // Mark as running so stop knows to act
+                await stopQRScanner();
+                onSuccess(decodedText);
             },
             (errorMessage) => {
-                // Ignore general parse errors as they fire continuously
+                // Ignore parse errors
             }
-        ).catch(err => {
-            document.getElementById('join-status').innerText = "Kamerazugriff verweigert oder Error: " + err;
-            console.error("QR Start Error:", err);
-        });
+        );
+        isScannerRunning = true;
     } catch (e) {
-        document.getElementById('join-status').innerText = "QR Scanner Init Error: " + e.message;
+        isScannerRunning = false;
+        document.getElementById('join-status').innerText = "QR Scanner Error: " + e.message;
+        console.error("Scanner Start Error:", e);
     }
 }
