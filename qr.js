@@ -1,5 +1,6 @@
 let html5QrCode = null;
 let isScannerRunning = false;
+let isScannerInitializing = false;
 
 function showHostQR(url) {
     const qrcodeContainer = document.getElementById('qrcode');
@@ -17,44 +18,67 @@ function showHostQR(url) {
     document.getElementById('host-url').innerText = url;
 }
 
+/**
+ * Robustly stops the scanner and clears the internal state/DOM.
+ */
 async function stopQRScanner() {
-    if (html5QrCode && isScannerRunning) {
+    if (html5QrCode) {
         try {
-            await html5QrCode.stop();
+            if (isScannerRunning) {
+                await html5QrCode.stop();
+            }
+            // Aggressive cleanup for mobile stability
+            html5QrCode.clear();
+            html5QrCode = null;
             isScannerRunning = false;
+            const reader = document.getElementById("reader");
+            if (reader) reader.innerHTML = "";
         } catch (err) {
-            console.warn("Scanner stop error (might be already stopped):", err);
+            console.warn("Scanner stop/clear error:", err);
+            html5QrCode = null; // Force reset anyway
+            isScannerRunning = false;
         }
     }
 }
 
 async function startQRScanner(onSuccess) {
-    // 1. Ensure any previous instance is stopped and cleared
+    if (isScannerInitializing) return;
+    isScannerInitializing = true;
+
+    // 1. Full cleanup before starting fresh
     await stopQRScanner();
-    const readerContainer = document.getElementById("reader");
-    readerContainer.innerHTML = "";
 
     try {
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
-        }
+        const reader = document.getElementById("reader");
+        if (!reader) throw new Error("Reader element not found");
 
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        // Always create a NEW instance to avoid reused state crashes
+        html5QrCode = new Html5Qrcode("reader");
 
-        await html5QrCode.start({ facingMode: "environment" }, config,
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        };
+
+        await html5QrCode.start(
+            { facingMode: "environment" },
+            config,
             async (decodedText) => {
-                isScannerRunning = true; // Mark as running so stop knows to act
+                isScannerRunning = true;
                 await stopQRScanner();
                 onSuccess(decodedText);
             },
-            (errorMessage) => {
-                // Ignore parse errors
-            }
+            () => { /* ignore parse errors */ }
         );
+
         isScannerRunning = true;
     } catch (e) {
         isScannerRunning = false;
-        document.getElementById('join-status').innerText = "QR Scanner Error: " + e.message;
+        html5QrCode = null;
+        document.getElementById('join-status').innerText = "Kamera-Fehler: " + e.message;
         console.error("Scanner Start Error:", e);
+    } finally {
+        isScannerInitializing = false;
     }
 }

@@ -986,10 +986,14 @@ window.addEventListener('load', () => {
 });
 
 // Support joining via link while app is already open
-window.addEventListener('hashchange', () => {
+window.addEventListener('hashchange', async () => {
     if (window.location.hash.startsWith('#join?room=')) {
         const roomId = window.location.hash.split('room=')[1];
         if (roomId) {
+            // Force stop scanner before processing the new hash
+            if (typeof stopQRScanner === 'function') {
+                await stopQRScanner();
+            }
             connectToRoom(roomId);
         }
     }
