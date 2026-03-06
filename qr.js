@@ -1,6 +1,5 @@
 let html5QrCode = null;
-let isScannerRunning = false;
-let isScannerInitializing = false;
+let scannerTransitionQueue = Promise.resolve();
 
 function showHostQR(url) {
     const qrcodeContainer = document.getElementById('qrcode');
@@ -19,66 +18,73 @@ function showHostQR(url) {
 }
 
 /**
- * Robustly stops the scanner and clears the internal state/DOM.
+ * Robustly stops the scanner by queuing the action behind any pending transitions.
  */
 async function stopQRScanner() {
-    if (html5QrCode) {
+    return (scannerTransitionQueue = scannerTransitionQueue.then(async () => {
+        if (!html5QrCode) return;
+
         try {
-            if (isScannerRunning) {
+            // Check state to avoid redundant or illegal stop calls
+            // 2 = SCANNING, 3 = PAUSED
+            const state = html5QrCode.getState();
+            if (state === 2 || state === 3) {
                 await html5QrCode.stop();
             }
-            // Aggressive cleanup for mobile stability
+
             html5QrCode.clear();
             html5QrCode = null;
-            isScannerRunning = false;
             const reader = document.getElementById("reader");
             if (reader) reader.innerHTML = "";
+            console.log("Scanner stopped and cleared successfully.");
         } catch (err) {
-            console.warn("Scanner stop/clear error:", err);
-            html5QrCode = null; // Force reset anyway
-            isScannerRunning = false;
+            console.warn("Scanner stop/clear catch:", err);
+            html5QrCode = null; // Force nullification to allow fresh starts
         }
-    }
+    }).catch(err => {
+        console.error("Transition Queue Error (Stop):", err);
+        html5QrCode = null;
+    }));
 }
 
 async function startQRScanner(onSuccess) {
-    if (isScannerInitializing) return;
-    isScannerInitializing = true;
+    // 1. Queue the start action
+    return (scannerTransitionQueue = scannerTransitionQueue.then(async () => {
+        // Clear anything existing first within the queue
+        if (html5QrCode) {
+            const state = html5QrCode.getState();
+            if (state === 2 || state === 3) await html5QrCode.stop();
+            html5QrCode.clear();
+        }
 
-    // 1. Full cleanup before starting fresh
-    await stopQRScanner();
-
-    try {
         const reader = document.getElementById("reader");
-        if (!reader) throw new Error("Reader element not found");
+        if (!reader) return;
 
-        // Always create a NEW instance to avoid reused state crashes
         html5QrCode = new Html5Qrcode("reader");
-
         const config = {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0
         };
 
-        await html5QrCode.start(
-            { facingMode: "environment" },
-            config,
-            async (decodedText) => {
-                isScannerRunning = true;
-                await stopQRScanner();
-                onSuccess(decodedText);
-            },
-            () => { /* ignore parse errors */ }
-        );
-
-        isScannerRunning = true;
-    } catch (e) {
-        isScannerRunning = false;
+        try {
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText) => {
+                    // Trigger stop (which will be queued)
+                    stopQRScanner().then(() => onSuccess(decodedText));
+                },
+                () => { /* parse err ignore */ }
+            );
+            console.log("Scanner started successfully.");
+        } catch (e) {
+            console.error("Scanner Start Error:", e);
+            document.getElementById('join-status').innerText = "Kamera-Fehler: " + e.message;
+            html5QrCode = null;
+        }
+    }).catch(err => {
+        console.error("Transition Queue Error (Start):", err);
         html5QrCode = null;
-        document.getElementById('join-status').innerText = "Kamera-Fehler: " + e.message;
-        console.error("Scanner Start Error:", e);
-    } finally {
-        isScannerInitializing = false;
-    }
+    }));
 }

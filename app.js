@@ -629,10 +629,10 @@ function broadcastGameState() {
 let pendingRoomId = null;
 let pendingAdminStatus = false;
 
-function connectToRoom(roomId) {
+async function connectToRoom(roomId) {
     // Stop scanner if it was running (e.g. if we came from screen-join)
     if (typeof stopQRScanner === 'function') {
-        stopQRScanner().catch(e => console.warn("Stop scanner failed:", e));
+        await stopQRScanner().catch(e => console.warn("Stop scanner failed:", e));
     }
 
     document.getElementById('join-status').innerText = "Verbinde...";
@@ -675,7 +675,6 @@ document.getElementById('btn-manual-join').addEventListener('click', () => {
     fullScreen();
     let code = document.getElementById('manual-room-id').value;
     if (code) {
-        if (html5QrCode) html5QrCode.stop().catch(e => { });
         connectToRoom(code);
     }
 });
