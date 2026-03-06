@@ -9,39 +9,42 @@ const SVG_CARDS_URL = './assets/svg-cards.svg';
 // Aspect ratio of the card sprite (width/height)
 const CARD_ASPECT = 169.075 / 244.640;
 
-// Map our internal rank letters → CardMeister cid rank strings
+// Map our internal rank letters → CardMeister rank names
 const RANK_MAP = {
-    'A': 'A',
+    'A': 'Ace',
     '2': '2', '3': '3', '4': '4', '5': '5',
     '6': '6', '7': '7', '8': '8', '9': '9',
     'T': '10',
-    'J': 'J',
-    'Q': 'Q',
-    'K': 'K'
+    'J': 'Jack',
+    'Q': 'Queen',
+    'K': 'King'
 };
 
-// Map our suit symbols → CardMeister cid suit letters
+// Map our suit symbols → CardMeister suit names
 const SUIT_MAP = {
-    '♠': 's',
-    '♥': 'h',
-    '♦': 'd',
-    '♣': 'c'
+    '♠': 'Spades',
+    '♥': 'Hearts',
+    '♦': 'Diamonds',
+    '♣': 'Clubs'
 };
 
 /**
- * Returns an inline SVG <use> element referencing the htdebeer sprite.
+ * Returns a <playing-card> custom element for the CardMeister library.
  * cardString: e.g. "A♠", "T♥", "K♦", "hidden"
  */
 function getCardHTML(cardString) {
     if (cardString === 'hidden' || !cardString) {
-        return `<playing-card class="card-svg" aria-label="hidden card"></playing-card>`;
+        return `<playing-card class="card-svg" back aria-label="hidden card"></playing-card>`;
     }
 
     const rank = RANK_MAP[cardString[0]];
     const suit = SUIT_MAP[cardString[1]];
-    const cid = `${rank}${suit}`;
 
-    return `<playing-card class="card-svg" cid="${cid}" aria-label="${cardString}"></playing-card>`;
+    if (!rank || !suit) {
+        return `<playing-card class="card-svg" back aria-label="invalid card"></playing-card>`;
+    }
+
+    return `<playing-card class="card-svg" rank="${rank}" suit="${suit}" aria-label="${cardString}"></playing-card>`;
 }
 
 // =============================================================

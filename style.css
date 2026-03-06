@@ -138,6 +138,44 @@ h1.logo {
     color: #0df;
 }
 
+#screen-game {
+    background: radial-gradient(ellipse at 50% 50%, var(--felt) 0%, var(--felt-dark) 100%);
+    display: none;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+}
+
+#screen-game.active {
+    display: flex;
+}
+
+#player-area {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.sub-screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.sub-screen.active {
+    display: flex;
+}
+
 /* Landscape Overlay - shown when phone is in portrait */
 #rotate-overlay {
     display: none;
