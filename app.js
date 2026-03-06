@@ -14,7 +14,8 @@ function playSound(type) {
 
 // UI Navigation
 function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    // Only target top-level screens to avoid hiding nested sub-screens
+    document.querySelectorAll('#app > .screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
 }
 
@@ -109,8 +110,8 @@ function cycleView() {
     currentView = (currentView % 3) + 1;
     const nextView = (currentView % 3) + 1;
 
-    // Switch screens within player-area
-    document.querySelectorAll('#player-area .screen').forEach(s => s.classList.remove('active'));
+    // Switch sub-screens within player-area
+    document.querySelectorAll('#player-area .sub-screen').forEach(s => s.classList.remove('active'));
     document.getElementById('view' + currentView).classList.add('active');
 
     // Update all badges to show the NEXT view number/icon
@@ -746,8 +747,15 @@ function renderGame(state, myId) {
     oppArea.style.display = 'none';
 
     // Populate common data across all Views
+    myIdNorm = String(myId).toLowerCase().trim();
     const myPlayer = state.players.find(p => String(p.id).toLowerCase().trim() === myIdNorm);
-    if (!myPlayer) return;
+
+    if (!myPlayer) {
+        console.warn("[Render] Player not found in state:", myIdNorm);
+        document.getElementById('debug-info').innerText = `Fehler: Spieler ${myIdNorm} nicht im Spiel-Status gefunden.`;
+        return;
+    }
+    document.getElementById('debug-info').innerText = `Verbunden als: ${myPlayer.name}`;
 
     const turnPlayer = state.players[state.turnIndex];
     const isMyTurn = turnPlayer && turnPlayer.id === myId;
