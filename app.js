@@ -97,7 +97,36 @@ let soloMode = false;
 // ==========================
 // BOT NAMES
 // ==========================
-const BOT_NAMES = ['🤖 Alex', '🤖 Max'];
+const BOT_NAMES = ['🤖 Alex', '🤖 Max', '🤖 Sarah', '🤖 Tom', '🤖 Lea', '🤖 Chris'];
+
+// ==========================
+// VIEW SWITCHING (MOBILE)
+// ==========================
+let currentView = 1;
+const VIEW_ICONS = { 1: '🃏', 2: '👁', 3: '🎯' };
+
+function cycleView() {
+    currentView = (currentView % 3) + 1;
+    const nextView = (currentView % 3) + 1;
+
+    // Switch screens within player-area
+    document.querySelectorAll('#player-area .screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('view' + currentView).classList.add('active');
+
+    // Update all badges to show the NEXT view number/icon
+    document.querySelectorAll('.vsb-badge').forEach(b => b.textContent = nextView);
+    document.querySelectorAll('.vsb-icon').forEach(i => i.textContent = VIEW_ICONS[nextView]);
+
+    // Animate the clicked button
+    document.querySelectorAll('.view-switch-btn').forEach(btn => {
+        btn.classList.add('clicked');
+        setTimeout(() => btn.classList.remove('clicked'), 320);
+    });
+
+    // Re-render to ensure everything is correct in the new view
+    renderGame(gameState, myPlayerId);
+}
+
 
 // ==========================
 // BOT AI LOGIC
@@ -174,9 +203,7 @@ document.getElementById('btn-solo').addEventListener('click', () => {
 // ==========================
 // HOST MULTIPLAYER
 // ==========================
-document.getElementById('btn-host').addEventListener('click', () => {
-    fullScreen();
-    playSound('click');
+function startHostMode() {
     showScreen('screen-host');
     soloMode = false;
     hostBotCount = 0;
@@ -222,6 +249,25 @@ document.getElementById('btn-host').addEventListener('click', () => {
         updateLobbyUI();
         broadcastGameState();
     });
+}
+
+function startJoinMode() {
+    showScreen('screen-join');
+    startQRScanner((text) => {
+        try {
+            fullScreen(); // re-trigger on successful scan
+            const urlMatch = text.match(/room=([^&]+)/);
+            connectToRoom(urlMatch ? urlMatch[1] : text);
+        } catch (e) {
+            alert('Ungültiger QR Code');
+        }
+    });
+}
+
+document.getElementById('btn-host').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    startHostMode();
 });
 
 document.getElementById('btn-admin-start').addEventListener('click', () => {
@@ -616,16 +662,7 @@ document.getElementById('btn-tap-to-join').addEventListener('click', () => {
 document.getElementById('btn-join').addEventListener('click', () => {
     fullScreen();
     playSound('click');
-    showScreen('screen-join');
-    startQRScanner((text) => {
-        try {
-            fullScreen(); // re-trigger on successful scan
-            const urlMatch = text.match(/room=([^&]+)/);
-            connectToRoom(urlMatch ? urlMatch[1] : text);
-        } catch (e) {
-            alert('Ungültiger QR Code');
-        }
-    });
+    startJoinMode();
 });
 
 document.getElementById('btn-manual-join').addEventListener('click', () => {
@@ -647,129 +684,179 @@ function renderGame(state, myId) {
         return;
     }
 
-    // Client-side console diagnostic
-    if (myId !== 'host') {
-        console.log("--- Received State Update ---");
-        console.table(state.players.map(p => ({ id: p.id, cards: p.cards.join(','), chips: p.chips })));
-    }
-
     showScreen('screen-game');
-    document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
 
-    const degEl = document.getElementById('debug-info');
-    const debugIdEl = document.getElementById('debug-my-id');
     const myIdNorm = String(myId).toLowerCase().trim();
+    const isHostView = (myId === 'host' && !soloMode);
 
-    if (debugIdEl) debugIdEl.innerText = myIdNorm.slice(0, 8);
-
-    // UI Separation Logic
+    // UI Separation
     const playerArea = document.getElementById('player-area');
     const table = document.getElementById('poker-table');
     const oppArea = document.getElementById('opponents-area');
 
-    if (myId === 'host' && !soloMode) {
-        // TV VIEW: Table only
+    if (isHostView) {
         playerArea.style.display = 'none';
         table.style.display = 'flex';
         oppArea.style.display = 'flex';
         table.classList.add('host-view');
-    } else {
-        // PHONE VIEW: Controller only (Cards + Buttons)
-        playerArea.style.display = 'flex';
-        table.style.display = 'none';
-        oppArea.style.display = 'none';
-        table.classList.remove('host-view');
-        playerArea.style.height = '100vh';
-        playerArea.style.justifyContent = 'center';
-    }
 
-    if (degEl) {
-        const found = state.players.some(p => String(p.id).toLowerCase().trim() === myIdNorm);
-        degEl.innerText = `Phase: ${state.phase} | ID am Tisch gefunden: ${found ? 'JA' : 'NEIN'}`;
-    }
+        // Host-specific rendering (TV)
+        document.getElementById('pot-info').innerText = 'Pot: ' + state.pot;
+        const commArea = document.getElementById('community-cards');
+        commArea.innerHTML = '';
+        state.communityCards.forEach(c => { commArea.innerHTML += getCardHTML(c); });
 
-    const commArea = document.getElementById('community-cards');
-    commArea.innerHTML = '';
-    state.communityCards.forEach(c => { commArea.innerHTML += getCardHTML(c); });
-
-    oppArea.innerHTML = '';
-
-    let turnPlayer = state.players[state.turnIndex];
-    let isMyTurn = turnPlayer && turnPlayer.id === myId;
-
-    let pFound = false;
-    state.players.forEach((p, idx) => {
-        if (String(p.id).toLowerCase().trim() === myIdNorm) {
-            pFound = true;
-            document.getElementById('my-name').innerText = p.name;
-            document.getElementById('my-chips').innerText = `💰 ${p.chips}`;
-            document.getElementById('my-current-bet').innerText = `Round Bet: ${p.bet}`;
-
-            const myCardsArea = document.getElementById('my-cards');
-            myCardsArea.innerHTML = '';
-            if (p.cards && p.cards.length > 0) {
-                p.cards.forEach(c => { myCardsArea.innerHTML += getCardHTML(c); });
-            } else if (state.phase !== 'lobby') {
-                myCardsArea.innerHTML = '<div style="color:red; font-size:0.8rem;">Warte auf Karten...</div>';
-            }
-
-            const controls = document.getElementById('controls');
-            if (isMyTurn && state.phase !== 'showdown') {
-                controls.classList.remove('controls-hidden');
-            } else {
-                controls.classList.add('controls-hidden');
-            }
-
-            let toCall = state.currentBet - p.bet;
-            document.getElementById('btn-call').innerText = toCall > 0 ? `CALL ${toCall} (CHECK)` : 'CHECK';
-
-            let minRaise = toCall > 0 ? toCall * 2 : 20;
-            minRaise = Math.min(minRaise, p.chips);
-
-            if (p.chips <= toCall) {
-                document.getElementById('btn-call').innerText = `ALL-IN CALL (${p.chips})`;
-                document.getElementById('btn-raise').disabled = true;
-            } else {
-                document.getElementById('btn-raise').disabled = false;
-            }
-
-            window.currentMinRaise = minRaise;
-            window.currentMaxRaise = p.chips;
-
-            if (window.currentRaiseAmount < minRaise) {
-                updateRaiseDial(minRaise);
-            }
-
-        } else {
-            let opDiv = document.createElement('div');
+        oppArea.innerHTML = '';
+        state.players.forEach((p, idx) => {
             let isActive = idx === state.turnIndex;
+            let opDiv = document.createElement('div');
             opDiv.className = `opponent ${isActive ? 'active' : ''}`;
-            let isBotP = p.isBot;
 
-            let cardsHtml;
-            if (state.phase === 'showdown' || (soloMode && isBotP)) {
-                cardsHtml = p.cards.map(c => c === 'hidden'
-                    ? '🂠'
-                    : `<span class="${(c[1] === '♥' || c[1] === '♦') ? 'red' : ''}">${c[0] === 'T' ? '10' : c[0]}${c[1]}</span>`
-                ).join(' ');
-            } else {
-                cardsHtml = p.cards.map(() => '🂠').join(' ');
-            }
+            let cardsHtml = (state.phase === 'showdown' || (soloMode && p.isBot))
+                ? p.cards.map(c => getCardHTML(c)).join('')
+                : p.cards.map(() => getCardHTML('hidden')).join('');
 
             opDiv.innerHTML = `
                 <div>${p.name}</div>
                 <div class="chip-count">💰 ${p.chips}</div>
                 <div class="status">${p.folded ? '❌ Folded' : 'Bet: ' + p.bet}</div>
-                <div style="font-size:1.4rem; letter-spacing:4px">${cardsHtml}</div>
+                <div class="cards-mini">${cardsHtml}</div>
             `;
             oppArea.appendChild(opDiv);
+        });
+        return;
+    }
+
+    // MOBILE / PLAYER VIEW
+    playerArea.style.display = 'flex';
+    table.style.display = 'none';
+    oppArea.style.display = 'none';
+
+    // Populate common data across all Views
+    const myPlayer = state.players.find(p => String(p.id).toLowerCase().trim() === myIdNorm);
+    if (!myPlayer) return;
+
+    const turnPlayer = state.players[state.turnIndex];
+    const isMyTurn = turnPlayer && turnPlayer.id === myId;
+
+    // Update Text Displays
+    document.querySelectorAll('.player-name-display').forEach(el => el.innerText = myPlayer.name);
+    document.querySelectorAll('.player-chips-display').forEach(el => el.innerText = myPlayer.chips);
+    document.querySelectorAll('.pot-value-display').forEach(el => el.innerText = state.pot);
+    document.querySelectorAll('.small-blind-display').forEach(el => el.innerText = `SB: ${state.baseSmallBlind || 10}`);
+    document.querySelectorAll('.big-blind-display').forEach(el => el.innerText = `BB: ${(state.baseSmallBlind || 10) * 2}`);
+    document.querySelectorAll('.call-amount-display').forEach(el => el.innerText = state.currentBet - myPlayer.bet);
+
+    // Turn Indicators
+    document.querySelectorAll('.my-turn-indicator').forEach(el => {
+        el.style.display = (isMyTurn && state.phase !== 'showdown') ? 'inline-flex' : 'none';
+    });
+
+    // Action Buttons State
+    document.querySelectorAll('.action-buttons-container').forEach(container => {
+        if (isMyTurn && state.phase !== 'showdown') {
+            container.classList.remove('controls-hidden');
+        } else {
+            container.classList.add('controls-hidden');
         }
     });
 
-    if (myId !== 'host') {
-        const adminCount = document.getElementById('admin-player-count');
-        if (adminCount) adminCount.innerText = state.players.length;
+    // Specific Button Label for Call
+    const toCall = state.currentBet - myPlayer.bet;
+    document.querySelectorAll('.btn-call').forEach(btn => {
+        btn.innerText = toCall > 0 ? `↑ Call ${toCall}` : '○ Check';
+    });
+
+    // Cards Injection
+    const cardHtml = myPlayer.cards.map(c => getCardHTML(c)).join('');
+    document.querySelectorAll('.my-cards-display').forEach(el => el.innerHTML = cardHtml);
+
+    // Peek Cards (View 2)
+    const peekCardsArea = document.querySelector('.my-peek-cards-display');
+    if (peekCardsArea) {
+        peekCardsArea.innerHTML = myPlayer.cards.map((c, i) => `
+            <div class="v2-card-wrap">
+                <div class="v2-cfront">
+                    ${getCardHTML(c)}
+                </div>
+                <div class="v2-cback" id="vb${i + 1}">
+                    <div class="bp"></div>
+                    <div class="bl">♠</div>
+                </div>
+            </div>
+        `).join('');
     }
+
+    // Community Cards (View 3)
+    document.querySelectorAll('.community-cards-display').forEach(el => {
+        el.innerHTML = '';
+        state.communityCards.forEach(c => { el.innerHTML += getCardHTML(c); });
+        // Add placeholders for remaining cards
+        for (let i = state.communityCards.length; i < 5; i++) {
+            el.innerHTML += '<div class="card-back card-community" style="opacity:0.3"></div>';
+        }
+    });
+
+    // Opponents (View 3 Mini-Table)
+    const miniOppArea = document.getElementById('mini-opponents-area');
+    if (miniOppArea) {
+        miniOppArea.innerHTML = '';
+        // Circular placement
+        const filteredPlayers = state.players.filter(p => String(p.id).toLowerCase().trim() !== myIdNorm);
+        filteredPlayers.forEach((p, i) => {
+            const angle = (i / filteredPlayers.length) * Math.PI * 2 - Math.PI / 2;
+            const rx = 35; // %
+            const ry = 25; // %
+            const x = 50 + rx * Math.cos(angle);
+            const y = 40 + ry * Math.sin(angle);
+
+            const isCurrent = state.players[state.turnIndex] && state.players[state.turnIndex].id === p.id;
+            const isDealer = state.players[state.dealerIndex] && state.players[state.dealerIndex].id === p.id;
+
+            const oppDiv = document.createElement('div');
+            oppDiv.className = `opponent ${isCurrent ? 'is-active' : ''}`;
+            oppDiv.style.left = `${x}%`;
+            oppDiv.style.top = `${y}%`;
+            oppDiv.style.transform = 'translate(-50%, -50%)';
+
+            oppDiv.innerHTML = `
+                <div style="position:relative">
+                    ${isDealer ? '<div class="opp-dealer-btn">D</div>' : ''}
+                    <div class="opp-cards">
+                        ${p.cards.length > 0 ? '<div class="opp-card-mini"></div><div class="opp-card-mini"></div>' : ''}
+                    </div>
+                </div>
+                <div class="opp-name">${p.name}</div>
+                <div class="opp-stack-mini">${p.folded ? 'FOLD' : '◈ ' + p.chips}</div>
+                ${p.bet > 0 ? `<div class="opp-bet">◈ ${p.bet}</div>` : ''}
+            `;
+            miniOppArea.appendChild(oppDiv);
+        });
+    }
+
+    // Raise Slider Setup
+    let minRaise = toCall > 0 ? toCall * 2 : (state.baseSmallBlind || 10) * 2;
+    minRaise = Math.min(minRaise, myPlayer.chips);
+
+    document.querySelectorAll('.raise-slider').forEach(slider => {
+        slider.min = minRaise;
+        slider.max = myPlayer.chips;
+        if (slider.value < minRaise) slider.value = minRaise;
+
+        // Sync display
+        const display = slider.parentElement.querySelector('.raise-amount-display');
+        if (display) display.innerText = `◈ ${slider.value}`;
+
+        // Logic for raise binding
+        slider.oninput = (e) => {
+            const val = e.target.value;
+            document.querySelectorAll('.raise-slider').forEach(s => s.value = val);
+            document.querySelectorAll('.raise-amount-display').forEach(d => d.innerText = `◈ ${val}`);
+            window.currentRaiseAmount = parseInt(val);
+        };
+    });
+
+    window.currentRaiseAmount = parseInt(document.querySelector('.raise-slider')?.value || minRaise);
 }
 
 function addLog(msg) {
@@ -782,114 +869,92 @@ function addLog(msg) {
 }
 
 // ==========================
-// ACTION BUTTONS & DIAL
+// ACTION BUTTONS BINDING
 // ==========================
-document.getElementById('btn-fold').addEventListener('click', () => {
-    playSound('click');
-    if (isHost || soloMode) handleClientAction(myPlayerId, { type: 'fold' });
-    else sendToHost({ type: 'fold' });
+document.querySelectorAll('.game-action').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const action = e.currentTarget.getAttribute('data-action');
+        playSound(action === 'fold' ? 'click' : 'chip');
+
+        let payload = { type: action };
+        if (action === 'raise') {
+            payload.amount = window.currentRaiseAmount;
+        } else if (action === 'allin') {
+            payload.type = 'raise';
+            payload.amount = window.currentMaxRaise;
+        }
+
+        if (isHost || soloMode) handleClientAction(myPlayerId, payload);
+        else sendToHost(payload);
+    });
 });
 
-document.getElementById('btn-call').addEventListener('click', () => {
-    playSound('chip');
-    if (isHost || soloMode) handleClientAction(myPlayerId, { type: 'call' });
-    else sendToHost({ type: 'call' });
-});
+// ==========================
+// SWIPE PEEK MECHANIC (MOBILE)
+// ==========================
+(function initSwipePeek() {
+    const MAX_LIFT = 170; // px
+    let startY = null;
+    let active = false;
 
-// ROTARY DIAL LOGIC
-const throwDial = document.getElementById('raise-dial');
-const dialWheel = throwDial.querySelector('.dial-wheel');
-const raiseAmtEl = document.getElementById('raise-amount');
+    function applyPeek(raw) {
+        const lift = document.getElementById('v2-cards-lift');
+        const shadow = document.getElementById('v2-shadow');
+        const hint = document.getElementById('v2-swipe-hint');
+        if (!lift) return;
 
-window.currentRaiseAmount = 20;
-window.currentMinRaise = 20;
-window.currentMaxRaise = 1000;
-let isDraggingDial = false;
-let startAngle = 0;
-let currentRotation = 0;
+        const peek = Math.max(0, Math.min(1, raw));
+        lift.style.transform = `translateY(${-peek * MAX_LIFT}px)`;
 
-function getAngle(x, y, rect) {
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    return Math.atan2(y - cy, x - cx) * (180 / Math.PI);
-}
+        const bSlide = peek * 105;
+        document.querySelectorAll('.v2-cback').forEach(back => {
+            back.style.transform = `translateY(${bSlide}%)`;
+        });
 
-function updateRaiseDial(amt) {
-    window.currentRaiseAmount = Math.max(window.currentMinRaise, Math.min(window.currentMaxRaise, amt));
-    raiseAmtEl.innerText = window.currentRaiseAmount;
-    if (window.currentRaiseAmount === window.currentMaxRaise) {
-        raiseAmtEl.innerText += " (ALL-IN)";
-        raiseAmtEl.style.color = "var(--danger)";
-    } else {
-        raiseAmtEl.style.color = "white";
-    }
-}
-
-function onDialStart(e) {
-    isDraggingDial = true;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    startAngle = getAngle(clientX, clientY, throwDial.getBoundingClientRect()) - currentRotation;
-    e.preventDefault();
-}
-
-function onDialMove(e) {
-    if (!isDraggingDial) return;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const newAngle = getAngle(clientX, clientY, throwDial.getBoundingClientRect());
-
-    let delta = newAngle - startAngle;
-
-    // Smooth endless looping delta (avoid jump at -180/180 degree split)
-    let rotationDiff = delta - currentRotation;
-    if (rotationDiff > 180) rotationDiff -= 360;
-    if (rotationDiff < -180) rotationDiff += 360;
-
-    currentRotation += rotationDiff;
-    dialWheel.style.transform = `rotate(${currentRotation}deg)`;
-
-    // Map rotation to raise amount (approx 10 chips per 10 degrees)
-    // To allow reaching 1000+ chips easily, make it scale exponentially or just use a multiplier
-    const range = window.currentMaxRaise - window.currentMinRaise;
-    // 1 full rotation (360) = 50% of range
-    const step = Math.floor(currentRotation / 5) * 10;
-
-    let nextAmt = window.currentMinRaise + step;
-
-    // Lock bounds visually based on dragging so they can reset by turning back
-    if (nextAmt < window.currentMinRaise) {
-        nextAmt = window.currentMinRaise;
-    }
-    if (nextAmt > window.currentMaxRaise) {
-        nextAmt = window.currentMaxRaise;
+        if (shadow) {
+            shadow.style.transform = `translateX(-50%) scaleX(${1 - peek * 0.55})`;
+            shadow.style.opacity = String(1 - peek * 0.6);
+        }
+        if (hint) hint.style.opacity = peek > 0.04 ? '0' : '1';
     }
 
-    updateRaiseDial(nextAmt);
-}
+    function onStart(e) {
+        if (currentView !== 2) return;
+        if (e.target.closest('.btn')) return;
+        active = true;
+        startY = e.touches ? e.touches[0].clientY : e.clientY;
+    }
 
-function onDialEnd() {
-    isDraggingDial = false;
-    startAngle = currentRotation; // lock in the baseline
-}
+    function onMove(e) {
+        if (!active || startY === null) return;
+        const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dy = startY - currentY;
+        applyPeek(dy / MAX_LIFT);
+        if (e.cancelable) e.preventDefault();
+    }
 
-// Mouse events
-throwDial.addEventListener('mousedown', onDialStart);
-window.addEventListener('mousemove', onDialMove);
-window.addEventListener('mouseup', onDialEnd);
+    function onEnd() {
+        if (!active) return;
+        active = false;
+        startY = null;
+        const dur = '0.5s cubic-bezier(0.25, 1.4, 0.5, 1)';
+        const lift = document.getElementById('v2-cards-lift');
+        if (lift) lift.style.transition = `transform ${dur}`;
+        document.querySelectorAll('.v2-cback').forEach(b => b.style.transition = `transform ${dur}`);
+        applyPeek(0);
+        setTimeout(() => {
+            if (lift) lift.style.transition = '';
+            document.querySelectorAll('.v2-cback').forEach(b => b.style.transition = '');
+        }, 520);
+    }
 
-// Touch events
-throwDial.addEventListener('touchstart', onDialStart, { passive: false });
-window.addEventListener('touchmove', onDialMove, { passive: false });
-window.addEventListener('touchend', onDialEnd);
-
-
-document.getElementById('btn-raise').addEventListener('click', () => {
-    playSound('chip');
-    let amount = window.currentRaiseAmount;
-    if (isHost || soloMode) handleClientAction(myPlayerId, { type: 'raise', amount });
-    else sendToHost({ type: 'raise', amount });
-});
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+})();
 
 // ==========================
 // URL JOIN PARSE
@@ -899,7 +964,17 @@ window.addEventListener('load', () => {
         const roomId = window.location.hash.split('room=')[1];
         if (roomId) {
             document.getElementById('manual-room-id').value = roomId;
-            showScreen('screen-join');
+            connectToRoom(roomId);
+            return;
         }
+    }
+
+    // Auto-Start Multiplayer
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 1024;
+
+    if (isMobile) {
+        startJoinMode();
+    } else {
+        startHostMode();
     }
 });

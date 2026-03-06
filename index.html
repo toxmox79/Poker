@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Poker Game Night</title>
     <link rel="manifest" href="manifest.json">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <!-- QR Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -179,36 +182,156 @@
 
             <!-- Mobile Client HUD (Player Area) -->
             <div id="player-area">
-
-                <div class="hud-top">
-                    <div class="hud-status">
-                        <div style="font-size:0.6rem; opacity:0.5;">ID: <span id="debug-my-id">?</span></div>
-                        <div id="my-name">Suche Platz am Tisch...</div>
-                        <div id="my-chips" class="chips">💰 0</div>
-                    </div>
-                    <div id="my-current-bet" class="hud-bet">Round Bet: 0</div>
-                </div>
-
-                <div class="hud-middle">
-                    <div id="my-cards" class="cards-container"></div>
-                </div>
-
-                <div id="controls" class="hud-bottom controls-hidden">
-                    <button id="btn-fold" class="btn btn-action danger">FOLD</button>
-                    <button id="btn-call" class="btn btn-action success">CHECK</button>
-
-                    <!-- Rotary Raise Dial -->
-                    <div class="raise-module">
-                        <div class="dial-container" id="raise-dial">
-                            <div class="dial-wheel">
-                                <span class="dial-marker">▼</span>
-                            </div>
-                            <div class="dial-value" id="raise-amount">20</div>
+                <!-- VIEW 1 – KARTEN SICHTBAR + AKTIONEN -->
+                <div id="view1" class="screen">
+                    <div class="v1-top">
+                        <div class="v1-player-name player-name-display">♠ Spieler</div>
+                        <div class="turn-badge my-turn-indicator" style="display:none;">
+                            <div class="turn-dot"></div> Dein Zug
                         </div>
-                        <button id="btn-raise" class="btn btn-action warn">RAISE</button>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="v1-stack"><span class="gold-coin">◈</span> <span
+                                    class="player-chips-display">0</span></div>
+                            <button class="view-switch-btn" onclick="cycleView()">
+                                <span class="vsb-icon">👁</span>
+                                <span class="vsb-badge">2</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="v1-cards-area my-cards-display">
+                        <!-- Cards injected here -->
+                    </div>
+
+                    <div class="v1-blinds-info">
+                        <span class="small-blind-display">SB: 10</span>
+                        <span style="color:rgba(200,168,75,0.3)">│</span>
+                        <div class="pot-display">POT: ◈ <span class="pot-value-display">0</span></div>
+                        <span style="color:rgba(200,168,75,0.3)">│</span>
+                        <span class="big-blind-display">BB: 20</span>
+                    </div>
+
+                    <div class="v1-action-bar action-bar">
+                        <div class="v1-bet-row">
+                            <span style="font-size:9px;color:rgba(200,168,75,0.6);white-space:nowrap">EINSATZ</span>
+                            <input type="range" class="bet-slider raise-slider" min="20" max="1000" value="20">
+                            <div class="bet-value raise-amount-display">◈ 20</div>
+                        </div>
+                        <div class="v1-actions action-buttons-container">
+                            <button class="btn btn-fold game-action" data-action="fold">✕ Fold</button>
+                            <button class="btn btn-check game-action" data-action="check">○ Check</button>
+                            <button class="btn btn-call game-action" data-action="call">↑ Call</button>
+                            <button class="btn btn-raise game-action" data-action="raise">⬆ Raise</button>
+                            <button class="btn btn-allin game-action" data-action="allin">★ All-In</button>
+                        </div>
                     </div>
                 </div>
 
+                <!-- VIEW 2 – SWIPE PEEK -->
+                <div id="view2" class="screen">
+                    <div class="v2-header">
+                        <div class="v2-player-name player-name-display">♠ Spieler</div>
+                        <div class="turn-badge my-turn-indicator" style="display:none;">
+                            <div class="turn-dot"></div> Dein Zug
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="font-size:11px;color:var(--cream)"><span style="color:var(--gold)">◈</span>
+                                <span class="player-chips-display">0</span></div>
+                            <button class="view-switch-btn" onclick="cycleView()">
+                                <span class="vsb-icon">👁</span>
+                                <span class="vsb-badge">3</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="v2-pot-row">
+                        <div class="pot-display">POT: ◈ <span class="pot-value-display">0</span></div>
+                        <div style="font-size:9px;color:rgba(200,168,75,0.5)">CALL: <span
+                                class="call-amount-display">0</span></div>
+                    </div>
+
+                    <div id="v2-middle">
+                        <div id="v2-shadow"></div>
+                        <div id="v2-cards-lift">
+                            <div id="v2-swipe-hint">
+                                <div class="hint-arrows">
+                                    <div class="hint-arrow"></div>
+                                    <div class="hint-arrow"></div>
+                                    <div class="hint-arrow"></div>
+                                </div>
+                                <div class="hint-text">Nach oben wischen</div>
+                            </div>
+                            <div id="v2-card-pair" class="my-peek-cards-display">
+                                <!-- Peek cards injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="v2-actions action-bar action-buttons-container">
+                        <button class="btn btn-fold game-action" data-action="fold">✕ Fold</button>
+                        <button class="btn btn-check game-action" data-action="check">○ Check</button>
+                        <button class="btn btn-call game-action" data-action="call">↑ Call</button>
+                        <button class="btn btn-raise game-action" data-action="raise">⬆ Raise</button>
+                        <button class="btn btn-allin game-action" data-action="allin">★ All-In</button>
+                    </div>
+                </div>
+
+                <!-- VIEW 3 – TISCH ÜBERSICHT -->
+                <div id="view3" class="screen">
+                    <div class="table-oval"></div>
+                    <div class="community-cards community-cards-display">
+                        <!-- Community cards injected here -->
+                    </div>
+                    <div class="table-pot">
+                        <div class="pot-display" style="font-size:9px">POT: ◈ <span class="pot-value-display">0</span>
+                        </div>
+                    </div>
+
+                    <div id="mini-opponents-area">
+                        <!-- Opponents injected here -->
+                    </div>
+
+                    <div class="v3-player-bar"></div>
+                    <div class="v3-my-cards my-cards-display">
+                        <!-- My cards injected here -->
+                    </div>
+
+                    <div
+                        style="position:absolute;bottom:66px;left:8px;z-index:12;display:flex;flex-direction:column;gap:3px;">
+                        <div class="v3-player-name player-name-display">♠ Spieler</div>
+                        <div style="font-size:10px;color:var(--cream);"><span style="color:var(--gold)">◈</span> <span
+                                class="player-chips-display">0</span></div>
+                        <div class="turn-badge my-turn-indicator" style="display:none; font-size:8px;padding:2px 7px;">
+                            <div class="turn-dot" style="width:6px;height:6px;"></div> Du
+                        </div>
+                    </div>
+
+                    <div style="position:absolute;top:10px;right:10px;z-index:30;">
+                        <button class="view-switch-btn" onclick="cycleView()">
+                            <span class="vsb-icon">👁</span>
+                            <span class="vsb-badge">1</span>
+                        </button>
+                    </div>
+
+                    <div class="v3-action-bar action-bar">
+                        <div class="v3-bet-mini">
+                            <input type="range" class="bet-slider-mini raise-slider" min="20" max="1000" value="20">
+                            <div class="bet-value-mini raise-amount-display">◈ 20</div>
+                        </div>
+                        <div class="v3-actions-row action-buttons-container">
+                            <button class="btn btn-fold game-action" data-action="fold"
+                                style="font-size:8px;padding:8px 6px;">✕ Fold</button>
+                            <button class="btn btn-check game-action" data-action="check"
+                                style="font-size:8px;padding:8px 6px;">○ Check</button>
+                            <button class="btn btn-call game-action" data-action="call"
+                                style="font-size:8px;padding:8px 6px;">↑ Call</button>
+                            <button class="btn btn-raise game-action" data-action="raise"
+                                style="font-size:8px;padding:8px 6px;">⬆ Raise</button>
+                            <button class="btn btn-allin game-action" data-action="allin"
+                                style="font-size:8px;padding:8px 6px;">★ All-In</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="game-log">Game Start...</div>
