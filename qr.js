@@ -48,7 +48,18 @@ async function stopQRScanner() {
 }
 
 async function startQRScanner(onSuccess) {
-    // 1. Queue the start action
+    // 1. Check for Secure Context (Modern browsers requirement for Camera)
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        document.getElementById('join-status').innerHTML = `
+            <div style="color:var(--gold); padding:15px; border:2px solid var(--gold); border-radius:12px; background:rgba(0,0,0,0.5); margin-top:10px;">
+                <div style="font-size:1.5rem; margin-bottom:10px;">⚠️ Insecure Context</div>
+                <div style="font-size:0.9rem; line-height:1.4;">Kamera wird von deinem Browser blockiert (nur HTTPS erlaubt).<br>
+                Nutze bitte den <strong>manuellen Code</strong> unten.</div>
+            </div>`;
+        return;
+    }
+
+    // 2. Queue the start action
     return (scannerTransitionQueue = scannerTransitionQueue.then(async () => {
         // Clear anything existing first within the queue
         if (html5QrCode) {
@@ -60,6 +71,12 @@ async function startQRScanner(onSuccess) {
         const reader = document.getElementById("reader");
         if (!reader) return;
 
+        // Verify Library availability
+        if (typeof Html5Qrcode === 'undefined') {
+            document.getElementById('join-status').innerText = "QR-Bibliothek konnte nicht geladen werden (Offline?).";
+            return;
+        }
+
         html5QrCode = new Html5Qrcode("reader");
         const config = {
             fps: 10,
@@ -68,6 +85,11 @@ async function startQRScanner(onSuccess) {
         };
 
         try {
+            // Check if mediaDevices are even supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Browser unterstützt keine Kamera-API oder Berechtigung verweigert.");
+            }
+
             await html5QrCode.start(
                 { facingMode: "environment" },
                 config,

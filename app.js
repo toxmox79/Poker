@@ -671,6 +671,14 @@ document.getElementById('btn-join').addEventListener('click', () => {
     startJoinMode();
 });
 
+document.getElementById('btn-manual-home').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    showScreen('screen-join');
+    // Scroll to the manual input
+    document.getElementById('manual-room-id').focus();
+});
+
 document.getElementById('btn-manual-join').addEventListener('click', () => {
     fullScreen();
     let code = document.getElementById('manual-room-id').value;
@@ -965,7 +973,19 @@ document.querySelectorAll('.game-action').forEach(btn => {
 // URL JOIN PARSE
 // ==========================
 window.addEventListener('load', () => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 1024;
+    // 1. Check for Protocol (file:// vs http://)
+    if (window.location.protocol === 'file:') {
+        document.body.innerHTML += `
+            <div style="position:fixed; top:0; left:0; right:0; bottom:0; z-index:99999; background:var(--felt); color:white; padding:40px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <h1 style="color:var(--gold);">⚠️ Dateimodus erkannt</h1>
+                <p style="max-width:500px; line-height:1.6;">Du hast die HTML-Datei direkt geöffnet. Poker Game Night benötigt einen <strong>Webserver</strong> (wie npx http-server), um zu funktionieren.<br><br>
+                Kamera und Multiplayer-Verbindungen sind im lokalen Dateimodus aus Sicherheitsgründen gesperrt.</p>
+                <button onclick="window.location.reload()" class="btn primary" style="margin-top:20px;">Neu laden</button>
+            </div>`;
+        return;
+    }
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 1024 && 'ontouchstart' in window);
 
     if (window.location.hash.startsWith('#join?room=')) {
         const roomId = window.location.hash.split('room=')[1];
