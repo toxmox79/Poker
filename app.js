@@ -12,19 +12,6 @@ function playSound(type) {
     }
 }
 
-// ==========================
-// GLOBAL STATE VARIABLES
-// ==========================
-let botCount = 1; // Solo mode bot count
-let hostBotCount = 0; // Multiplayer host bot count
-let currentView = 1;
-let isHost = false;
-let soloMode = false;
-let myPlayerId = null;
-
-const VIEW_ICONS = { 1: '🃏', 2: '👁', 3: '🎯' };
-const BOT_NAMES = ['🤖 Alex', '🤖 Max', '🤖 Sarah', '🤖 Tom', '🤖 Lea', '🤖 Chris'];
-
 // UI Navigation
 function showScreen(id) {
     // Only target top-level screens to avoid hiding nested sub-screens
@@ -47,33 +34,36 @@ function fullScreen() {
     }
 }
 
-// Initialize Admin Button Listeners (will be called after DOM is ready)
-function initAdminButtons() {
-    document.querySelectorAll('.admin-adj').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const targetId = e.target.getAttribute('data-target');
-            const delta = parseInt(e.target.getAttribute('data-delta'));
-            const min = parseInt(e.target.getAttribute('data-min'));
-            const max = parseInt(e.target.getAttribute('data-max'));
-            const input = document.getElementById(targetId);
-            const display = document.getElementById(targetId + '-display');
+// ==========================
+// BOT COUNT SELECTORS
+// ==========================
+let botCount = 1; // Solo mode bot count (home screen not shown anymore, kept for solo)
 
-            let current = parseInt(input.value);
-            let next = Math.max(min, Math.min(max, current + delta));
-            input.value = next;
+// Unified Admin / Host UI Adjustments
+document.querySelectorAll('.admin-adj').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const targetId = e.target.getAttribute('data-target');
+        const delta = parseInt(e.target.getAttribute('data-delta'));
+        const min = parseInt(e.target.getAttribute('data-min'));
+        const max = parseInt(e.target.getAttribute('data-max'));
+        const input = document.getElementById(targetId);
+        const display = document.getElementById(targetId + '-display');
 
-            // Custom display formatting
-            if (e.target.hasAttribute('data-isblind')) {
-                display.innerText = `${next} / ${next * 2}`;
-            } else if (e.target.hasAttribute('data-istimer')) {
-                display.innerText = next === 0 ? 'Nie' : `Alle ${next} Runden`;
-            } else {
-                display.innerText = next;
-            }
-            playSound('click');
-        });
+        let current = parseInt(input.value);
+        let next = Math.max(min, Math.min(max, current + delta));
+        input.value = next;
+
+        // Custom display formatting
+        if (e.target.hasAttribute('data-isblind')) {
+            display.innerText = `${next} / ${next * 2}`;
+        } else if (e.target.hasAttribute('data-istimer')) {
+            display.innerText = next === 0 ? 'Nie' : `Alle ${next} Runden`;
+        } else {
+            display.innerText = next;
+        }
+        playSound('click');
     });
-}
+});
 
 function updateHostBots() {
     // Remove existing bots, then add correct number
@@ -85,24 +75,6 @@ function updateHostBots() {
         });
     }
     updateLobbyUI();
-}
-
-function updateLobbyUI() {
-    const list = document.getElementById('players-list');
-    list.innerHTML = '';
-    gameState.players.forEach(p => {
-        const li = document.createElement('li');
-        li.innerText = p.name;
-        list.appendChild(li);
-    });
-
-    // The player array length in lobby includes bots if they were added.
-    let humanCount = gameState.players.length;
-    document.getElementById('player-count').innerText = humanCount;
-
-    // Broadcast the updated count to the Admin screen if it exists
-    let adminPlayerCountEl = document.getElementById('admin-player-count');
-    if (adminPlayerCountEl) adminPlayerCountEl.innerText = humanCount;
 }
 
 
@@ -120,6 +92,19 @@ let gameState = {
     dealerIndex: 0,
     deck: []
 };
+let myPlayerId = null;
+let soloMode = false;
+
+// ==========================
+// BOT NAMES
+// ==========================
+const BOT_NAMES = ['🤖 Alex', '🤖 Max', '🤖 Sarah', '🤖 Tom', '🤖 Lea', '🤖 Chris'];
+
+// ==========================
+// VIEW SWITCHING (MOBILE)
+// ==========================
+let currentView = 1;
+const VIEW_ICONS = { 1: '🃏', 2: '👁', 3: '🎯' };
 
 function cycleView() {
     currentView = (currentView % 3) + 1;
@@ -191,35 +176,30 @@ function scheduleBotTurn() {
 // ==========================
 // SOLO MODE
 // ==========================
-function initSoloButton() {
-    const btn = document.getElementById('btn-solo');
-    if (btn) {
-        btn.addEventListener('click', () => {
-            fullScreen();
-            playSound('click');
-            soloMode = true;
-            myPlayerId = 'host';
-            isHost = true;
+document.getElementById('btn-solo').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    soloMode = true;
+    myPlayerId = 'host';
+    isHost = true;
 
-            gameState.players = [];
-            // Human player
-            gameState.players.push({
-                id: 'host', name: 'Du', chips: 1000, bet: 0,
-                cards: [], active: true, folded: false, isBot: false
-            });
-            // Add bots
-            const numBots = Math.max(1, botCount); // at least 1 bot in solo
-            for (let i = 0; i < numBots; i++) {
-                gameState.players.push({
-                    id: `bot_${i}`, name: BOT_NAMES[i], chips: 1000, bet: 0,
-                    cards: [], active: true, folded: false, isBot: true
-                });
-            }
-
-            startGame();
+    gameState.players = [];
+    // Human player
+    gameState.players.push({
+        id: 'host', name: 'Du', chips: 1000, bet: 0,
+        cards: [], active: true, folded: false, isBot: false
+    });
+    // Add bots
+    const numBots = Math.max(1, botCount); // at least 1 bot in solo
+    for (let i = 0; i < numBots; i++) {
+        gameState.players.push({
+            id: `bot_${i}`, name: BOT_NAMES[i], chips: 1000, bet: 0,
+            cards: [], active: true, folded: false, isBot: true
         });
     }
-}
+
+    startGame();
+});
 
 // ==========================
 // HOST MULTIPLAYER
@@ -286,35 +266,22 @@ function startJoinMode() {
     });
 }
 
-// ==========================
-// HOST MULTIPLAYER
-// ==========================
-function initHostButton() {
-    const btn = document.getElementById('btn-host');
-    if (btn) {
-        btn.addEventListener('click', () => {
-            fullScreen();
-            playSound('click');
-            startHostMode();
-        });
-    }
-}
+document.getElementById('btn-host').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    startHostMode();
+});
 
-function initAdminStartButton() {
-    const btn = document.getElementById('btn-admin-start');
-    if (btn) {
-        btn.addEventListener('click', () => {
-            playSound('click');
-            const config = {
-                bots: parseInt(document.getElementById('admin-bot-count').value),
-                startingChips: parseInt(document.getElementById('admin-chip-count').value),
-                smallBlind: parseInt(document.getElementById('admin-blind-base').value),
-                blindTimer: parseInt(document.getElementById('admin-blind-timer').value)
-            };
-            sendToHost({ type: 'admin_start_game', config: config });
-        });
-    }
-}
+document.getElementById('btn-admin-start').addEventListener('click', () => {
+    playSound('click');
+    const config = {
+        bots: parseInt(document.getElementById('admin-bot-count').value),
+        startingChips: parseInt(document.getElementById('admin-chip-count').value),
+        smallBlind: parseInt(document.getElementById('admin-blind-base').value),
+        blindTimer: parseInt(document.getElementById('admin-blind-timer').value)
+    };
+    sendToHost({ type: 'admin_start_game', config: config });
+});
 
 function setupBotsAndBlinds(config) {
     // 1. Reset players to only human clients
@@ -688,53 +655,38 @@ async function connectToRoom(roomId) {
     });
 }
 
-// CLIENT JOIN
-function initJoinButtons() {
-    const tapToJoinBtn = document.getElementById('btn-tap-to-join');
-    if (tapToJoinBtn) {
-        tapToJoinBtn.addEventListener('click', () => {
-            fullScreen();
-            playSound('click');
-            if (pendingAdminStatus) {
-                showScreen('screen-admin-lobby');
-            } else {
-                showScreen('screen-game');
-                document.getElementById('join-status').innerText = "Warte auf Spielstart durch Admin...";
-            }
-        });
+document.getElementById('btn-tap-to-join').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    if (pendingAdminStatus) {
+        showScreen('screen-admin-lobby');
+    } else {
+        showScreen('screen-game');
+        document.getElementById('join-status').innerText = "Warte auf Spielstart durch Admin...";
     }
+});
 
-    const joinBtn = document.getElementById('btn-join');
-    if (joinBtn) {
-        joinBtn.addEventListener('click', () => {
-            fullScreen();
-            playSound('click');
-            startJoinMode();
-        });
-    }
+document.getElementById('btn-join').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    startJoinMode();
+});
 
-    const manualHomeBtn = document.getElementById('btn-manual-home');
-    if (manualHomeBtn) {
-        manualHomeBtn.addEventListener('click', () => {
-            fullScreen();
-            playSound('click');
-            showScreen('screen-join');
-            // Scroll to the manual input
-            document.getElementById('manual-room-id').focus();
-        });
-    }
+document.getElementById('btn-manual-home').addEventListener('click', () => {
+    fullScreen();
+    playSound('click');
+    showScreen('screen-join');
+    // Scroll to the manual input
+    document.getElementById('manual-room-id').focus();
+});
 
-    const manualJoinBtn = document.getElementById('btn-manual-join');
-    if (manualJoinBtn) {
-        manualJoinBtn.addEventListener('click', () => {
-            fullScreen();
-            let code = document.getElementById('manual-room-id').value;
-            if (code) {
-                connectToRoom(code);
-            }
-        });
+document.getElementById('btn-manual-join').addEventListener('click', () => {
+    fullScreen();
+    let code = document.getElementById('manual-room-id').value;
+    if (code) {
+        connectToRoom(code);
     }
-}
+});
 
 // ==========================
 // RENDER
@@ -940,29 +892,23 @@ function addLog(msg) {
 // ==========================
 // ACTION BUTTONS BINDING
 // ==========================
-function initGameActionButtons() {
-    document.querySelectorAll('.game-action').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const action = e.currentTarget.getAttribute('data-action');
-            playSound(action === 'fold' ? 'click' : 'chip');
+document.querySelectorAll('.game-action').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const action = e.currentTarget.getAttribute('data-action');
+        playSound(action === 'fold' ? 'click' : 'chip');
 
-            let payload = { type: action };
-            if (action === 'raise') {
-                payload.amount = window.currentRaiseAmount;
-            } else if (action === 'allin') {
-                payload.type = 'raise';
-                const myIdNorm = String(myPlayerId).toLowerCase().trim();
-                const myPlayer = gameState.players.find(p => String(p.id).toLowerCase().trim() === myIdNorm);
-                if (myPlayer) {
-                    payload.amount = myPlayer.chips + (gameState.currentBet - myPlayer.bet);
-                }
-            }
+        let payload = { type: action };
+        if (action === 'raise') {
+            payload.amount = window.currentRaiseAmount;
+        } else if (action === 'allin') {
+            payload.type = 'raise';
+            payload.amount = window.currentMaxRaise;
+        }
 
-            if (isHost || soloMode) handleClientAction(myPlayerId, payload);
-            else sendToHost(payload);
-        });
+        if (isHost || soloMode) handleClientAction(myPlayerId, payload);
+        else sendToHost(payload);
     });
-}
+});
 
 // ==========================
 // SWIPE PEEK MECHANIC (MOBILE)
@@ -1032,17 +978,9 @@ function initGameActionButtons() {
 })();
 
 // ==========================
-// URL JOIN PARSE & INITIALIZATION
+// URL JOIN PARSE
 // ==========================
 window.addEventListener('load', () => {
-    // Initialize all event listeners first
-    initAdminButtons();
-    initSoloButton();
-    initHostButton();
-    initAdminStartButton();
-    initJoinButtons();
-    initGameActionButtons();
-
     // 1. Check for Protocol (file:// vs http://)
     if (window.location.protocol === 'file:') {
         document.body.innerHTML += `

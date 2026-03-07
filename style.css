@@ -1,16 +1,4 @@
 
-/* ════════════════════════════════════════
-   ROOT VARIABLES & COLORS
-════════════════════════════════════════════ */
-:root {
-    --gold: #d4a017;
-    --gold-light: #f5d547;
-    --gold-dark: #aa7d0a;
-    --felt: #0a3a0a;
-    --bg-color: #0f0905;
-    --cream: #e8dcc8;
-    --dark: #1a1810;
-}
 
 /* ════════════════════════════════════════
    ENHANCED MOBILE UI STYLES
@@ -94,63 +82,13 @@
     }
 }
 
-/* Card Display Containers */
-.my-cards-display {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    align-items: center;
-    min-height: 140px;
-    flex-wrap: wrap;
-    padding: 10px;
-}
-
-.v1-cards-area {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    align-items: center;
-    min-height: 150px;
-    padding: 20px 10px;
-    margin: 15px 0;
-}
-
-.my-peek-cards-display {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    align-items: center;
-}
-
-.community-cards-display {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    align-items: center;
-    min-height: 120px;
-    padding: 10px;
-    flex-wrap: wrap;
-}
-
 /* Smooth card flip animation for mobile */
 .card-svg {
-    display: inline-block;
-    width: 80px;
-    height: 110px;
-    flex-shrink: 0;
     transition: transform 0.3s ease, filter 0.3s ease;
-    cursor: pointer;
 }
 
 .card-svg:hover {
     filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.7));
-    transform: scale(1.05);
-}
-
-playing-card {
-    display: inline-block;
-    width: 80px;
-    height: 110px;
 }
 
 /* Enhanced HUD on mobile */
