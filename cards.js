@@ -28,24 +28,57 @@ const SUIT_MAP = {
     '♣': 'Clubs'
 };
 
+// Map suit symbols for rendering
+const SUIT_MAP_SYMBOLS = {
+    '♠': '♠',
+    '♥': '♥',
+    '♦': '♦',
+    '♣': '♣'
+};
+
 /**
- * Returns a <playing-card> custom element for the CardMeister library.
+ * Returns inline SVG HTML string for a playing card.
  * cardString: e.g. "A♠", "T♥", "K♦", "hidden"
  */
 function getCardHTML(cardString) {
     if (cardString === 'hidden' || !cardString) {
-        return `<playing-card class="card-svg" back aria-label="hidden card"></playing-card>`;
+        // Card back
+        return `<svg class="card-svg" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:110px;border-radius:4px;">
+            <rect width="100" height="140" fill="#0d3a1a" stroke="#d4a017" stroke-width="1"/>
+            <text x="50" y="70" text-anchor="middle" dominant-baseline="middle" font-size="50" fill="#d4a017" font-weight="bold">🂠</text>
+        </svg>`;
     }
 
     const rank = RANK_MAP[cardString[0]];
     const suit = SUIT_MAP[cardString[1]];
 
     if (!rank || !suit) {
-        return `<playing-card class="card-svg" back aria-label="invalid card"></playing-card>`;
+        // Invalid card
+        return `<svg class="card-svg" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:110px;border-radius:4px;">
+            <rect width="100" height="140" fill="#666" stroke="#333" stroke-width="1"/>
+            <text x="50" y="70" text-anchor="middle" dominant-baseline="middle" font-size="20" fill="#999">?</text>
+        </svg>`;
     }
 
-    return `<playing-card class="card-svg" rank="${rank}" suit="${suit}" aria-label="${cardString}"></playing-card>`;
+    // Get suit info
+    const suitSym = SUIT_MAP_SYMBOLS[cardString[1]] || '?';
+    const suitColor = (cardString[1] === '♥' || cardString[1] === '♦') ? '#c41e3a' : '#000';
+
+    // Card front
+    return `<svg class="card-svg" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:110px;border-radius:4px;">
+        <rect width="100" height="140" fill="#fff" stroke="#000" stroke-width="0.5"/>
+        <!-- Top-left rank and suit -->
+        <text x="5" y="12" font-size="9" font-weight="bold" fill="${suitColor}" font-family="Arial, sans-serif">${rank}</text>
+        <text x="5" y="22" font-size="11" fill="${suitColor}">${suitSym}</text>
+        <!-- Center suit symbol (large, faded) -->
+        <text x="50" y="70" text-anchor="middle" dominant-baseline="middle" font-size="55" fill="${suitColor}" opacity="0.15">${suitSym}</text>
+        <!-- Bottom-right rank and suit (rotated 180°) -->
+        <g transform="translate(95, 128) rotate(180)">
+            <text x="0" y="0" font-size="9" font-weight="bold" fill="${suitColor}" font-family="Arial, sans-serif">${rank}</text>
+        </g>
+    </svg>`;
 }
+
 
 // =============================================================
 // Deck helpers
