@@ -1,4 +1,16 @@
 
+/* ════════════════════════════════════════
+   ROOT VARIABLES & COLORS
+════════════════════════════════════════════ */
+:root {
+    --gold: #d4a017;
+    --gold-light: #f5d547;
+    --gold-dark: #aa7d0a;
+    --felt: #0a3a0a;
+    --bg-color: #0f0905;
+    --cream: #e8dcc8;
+    --dark: #1a1810;
+}
 
 /* ════════════════════════════════════════
    ENHANCED MOBILE UI STYLES

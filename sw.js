@@ -1,6 +1,6 @@
 // ⚠️ WICHTIG: Bei jeder Aktualisierung diese Versionsnummer erhöhen!
 // Das zwingt alle Browser, den alten Cache zu löschen und neu zu laden.
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `poker-night-${CACHE_VERSION}`;
 
 // Allow the update banner to trigger skipWaiting via postMessage
@@ -18,6 +18,7 @@ const urlsToCache = [
   './webrtc.js',
   './qr.js',
   './cards.js',
+  './cardmeister.js',
   './manifest.json',
   './assets/svg-cards.svg',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
